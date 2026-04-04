@@ -1,16 +1,29 @@
-# pip install openai anthropic python-dotenv
+# pip install openai anthropic python-dotenv httpx
+from __future__ import annotations
 import os
-import json
 import re
+import json
 import asyncio
+import statistics
+import xml.etree.ElementTree as ET
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 
+try:
+    import httpx
+    _HTTPX_AVAILABLE = True
+except ImportError:
+    _HTTPX_AVAILABLE = False
+
 load_dotenv()
 
-openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-anthropic_client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_openai_key = os.environ.get("OPENAI_API_KEY")
+_anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+openai_client = AsyncOpenAI(api_key=_openai_key) if _openai_key else None
+anthropic_client = AsyncAnthropic(api_key=_anthropic_key) if _anthropic_key else None
 
 OPENAI_MODEL = "gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
@@ -29,25 +42,40 @@ The JSON must have exactly these fields:
 }
 
 Scoring guide:
-- 0-20: Looks legitimate. Normal language, reasonable price, no pressure tactics.
+- 0-20: Looks legitimate. Normal language, reasonable price, no pressure tactics, offers in-person viewing.
 - 21-40: Minor concerns. One or two soft signals worth noting.
 - 41-65: Suspicious. Multiple red flags present. Renter should verify carefully.
 - 66-85: Likely scam. Strong fraud indicators present.
-- 86-100: Almost certainly a scam. Classic fraud pattern detected.
+- 86-100: Almost certainly a scam. Classic fraud pattern: overseas landlord + wire transfer + no viewing + urgency pressure all present together.
 
-Red flags to look for (each one found raises the score):
+Red flags to look for (each one found raises the score significantly):
 - Payment via wire transfer, Western Union, Zelle, gift cards, or cryptocurrency
-- Landlord claims to be overseas, out of country, in military, or on missionary trip
-- Religious appeals like "God-fearing" or "honest Christian"
-- Refuses or discourages in-person viewing
-- Asks to contact outside the listing platform (email/text directly)
+- Landlord claims to be overseas, out of country, in military, or on a missionary trip
+- Religious appeals like "God-fearing", "honest Christian", or similar to establish false trust
+- Refuses or discourages in-person viewing ("no viewings", "currently traveling so viewing not possible")
 - Urgency pressure: "must decide today", "many people interested", "first come first served"
 - Requests deposit or rent payment before signing a lease or seeing the property
-- Unusually detailed personal story from the landlord (overcompensating)
-- Grammar that suggests machine translation (e.g., stiff formal phrasing in odd places)
-- Price that seems impossibly low for the claimed location (if price is provided)
-- Requests personal information (SSN, bank info) upfront
+- Asks to contact ONLY via personal email/phone, explicitly avoiding the listing platform
+- Unusually detailed personal backstory from landlord (overcompensating with sympathy)
+- Grammar suggesting machine translation or non-native scripted text
+- Price impossibly low for the claimed location (e.g., $650/mo for a 2BR near downtown Boston)
+- Requests personal information (SSN, bank info) upfront before any showing
 - Photos described as "not available right now" or "will send later"
+
+Legitimate signals that LOWER the score (do NOT treat these as red flags):
+- Offers to schedule a showing, open house, or in-person visit — this is a strong legitimacy signal
+- Standard lease terms: first month, last month, security deposit — this is normal in Boston/Northeast, NOT suspicious
+- Mentioning contact by email or text FOR SCHEDULING A SHOWING is completely normal — only flag off-platform contact when the landlord insists on it to AVOID accountability
+- Reasonable price for the stated neighborhood and city
+- Specific, realistic details about the unit (floor, building type, transit, laundry)
+- No urgency language, no overseas story, no unusual payment requests
+
+CRITICAL RULES:
+1. Multiple strong red flags together (overseas + wire transfer + no viewing + urgency) → score must be 86+
+2. Zero red flags with legitimate signals → score must be 20 or below
+3. Offering email/text to schedule a showing is NOT the same as demanding off-platform contact to avoid the platform
+4. "First, last, and security required" is standard Boston rental practice — do NOT flag it
+5. A single soft signal alone should not push a score above 35
 
 red_flags must be short (under 10 words each), specific, and plain English.
 If no red flags are found, red_flags must be an empty list [].
@@ -55,6 +83,8 @@ Never return null for red_flags."""
 
 
 async def _call_openai(user_message: str) -> str:
+    if openai_client is None:
+        raise RuntimeError("OPENAI_API_KEY not set")
     response = await openai_client.chat.completions.create(
         model=OPENAI_MODEL,
         max_tokens=512,
@@ -67,6 +97,8 @@ async def _call_openai(user_message: str) -> str:
 
 
 async def _call_anthropic(user_message: str) -> str:
+    if anthropic_client is None:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
     response = await anthropic_client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=512,
@@ -132,6 +164,154 @@ Return only the JSON object."""
         return _parse_raw(raw)
     except Exception:
         return DEFAULT
+
+
+# Approximate median monthly rents (USD) for Boston-area neighborhoods, 2024-2025.
+# Used as fallback when the Craigslist RSS feed is unavailable (403/timeout).
+# stdev is estimated as 20% of median for a typical spread.
+_BOSTON_MEDIANS: dict[str, int] = {
+    "back bay": 3400,
+    "beacon hill": 2900,
+    "south end": 3200,
+    "fenway": 2500,
+    "downtown": 3300,
+    "north end": 2800,
+    "seaport": 3600,
+    "financial district": 3500,
+    "cambridge": 2900,
+    "somerville": 2500,
+    "allston": 2100,
+    "brighton": 2000,
+    "jamaica plain": 2300,
+    "roxbury": 1900,
+    "dorchester": 2000,
+    "south boston": 2800,
+    "charlestown": 2700,
+    "east boston": 2200,
+    "hyde park": 1800,
+    "roslindale": 1900,
+    "mattapan": 1700,
+}
+
+
+def _neighborhood_median(neighborhood: str) -> int | None:
+    """Return the hardcoded median rent for a Boston neighborhood, or None if unknown."""
+    key = neighborhood.lower().strip()
+    # Exact match first
+    if key in _BOSTON_MEDIANS:
+        return _BOSTON_MEDIANS[key]
+    # Partial match (e.g. "Back Bay, Boston" → "back bay")
+    for k, v in _BOSTON_MEDIANS.items():
+        if k in key or key in k:
+            return v
+    return None
+
+
+async def _fetch_craigslist_prices(neighborhood: str) -> list[float]:
+    """Fetch up to 20 apartment listing prices from Craigslist Boston RSS."""
+    if not _HTTPX_AVAILABLE:
+        return []
+
+    params = {"format": "rss"}
+    if neighborhood:
+        params["query"] = neighborhood
+    url = "https://boston.craigslist.org/search/aap?" + urlencode(params)
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        xml_text = resp.text
+
+    root = ET.fromstring(xml_text)
+    # RSS 2.0: items are under channel/item
+    prices: list[float] = []
+
+    for item in root.iter("item"):
+        if len(prices) >= 20:
+            break
+        # Price usually appears in the title like "2BR - $1,500/mo" or "$1500 cozy studio"
+        title_el = item.find("title")
+        text = title_el.text if title_el is not None else ""
+        matches = re.findall(r"\$(\d[\d,]*)", text or "")
+        for m in matches:
+            val = float(m.replace(",", ""))
+            if 300 <= val <= 20000:
+                prices.append(val)
+                break  # one price per item
+
+    return prices
+
+
+async def price_analysis(price_usd: float | None, neighborhood: str) -> dict:
+    """
+    Compare price_usd against live Craigslist Boston market data and return a
+    penalty score indicating how suspiciously low the price is.
+
+    Args:
+        price_usd:    Asking price from the listing (None → neutral score).
+        neighborhood: Neighborhood name used to narrow the Craigslist search
+                      (e.g. "Back Bay", "Allston", "South End").
+
+    Returns:
+        {
+            "price_score":   int (0–100),   # 80+ means suspiciously cheap
+            "median_price":  int | None,     # market median from fetched data
+            "note":          str             # human-readable explanation
+        }
+    Never raises — returns neutral score on any error.
+    """
+    NEUTRAL = {"price_score": 50, "median_price": None, "note": "Market data unavailable."}
+
+    if price_usd is None:
+        return {"price_score": 50, "median_price": None, "note": "No price provided."}
+
+    # Try live Craigslist RSS first
+    source = "Craigslist RSS"
+    try:
+        prices = await _fetch_craigslist_prices(neighborhood)
+    except Exception:
+        prices = []
+
+    if len(prices) < 5:
+        # Fall back to hardcoded Boston neighborhood medians
+        hardcoded = _neighborhood_median(neighborhood)
+        if hardcoded is None:
+            return NEUTRAL
+        median = float(hardcoded)
+        stdev = median * 0.20
+        source = "neighborhood median estimate"
+    else:
+        median = statistics.median(prices)
+        stdev = statistics.stdev(prices) if len(prices) >= 2 else median * 0.20
+        if stdev == 0:
+            stdev = median * 0.20
+
+    z = (median - price_usd) / stdev  # positive → price is below market median
+
+    if z >= 2.0:
+        score = min(100, 80 + int((z - 2.0) * 10))
+    elif z >= 1.0:
+        score = 40 + int((z - 1.0) * 40)
+    elif z >= 0.0:
+        score = int(z * 40)
+    else:
+        score = 0  # price at or above median — not suspicious
+
+    direction = "below" if z >= 0 else "above"
+    note = (
+        f"Price is {abs(z):.1f} SD {direction} {neighborhood} median "
+        f"(median=${int(median):,}, source={source})"
+    )
+
+    return {"price_score": score, "median_price": int(median), "note": note}
 
 
 TEST_CASES = [
