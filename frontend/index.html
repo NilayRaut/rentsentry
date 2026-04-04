@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RentSentry</title>
+</head>
+<body>
+  <h1>RentSentry</h1>
+  <!-- TODO Member D: build the UI here -->
+  <script>
+    // Change this to the Railway URL once Member A deploys
+    const API = "http://localhost:8000";
+
+    async function analyze(payload) {
+      const res = await fetch(`${API}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return res.json();
+    }
+
+    // Quick smoke test — open browser console to verify
+    analyze({
+      url: null,
+      description: "Wire transfer only, I am overseas",
+      price_usd: 600,
+      image_urls: [],
+    }).then(console.log).catch(console.error);
+  </script>
+</body>
+</html>

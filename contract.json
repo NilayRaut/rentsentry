@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "endpoint": "/analyze",
+    "body": {
+      "url":         "string | null",
+      "title":       "string | null",
+      "description": "string | null",
+      "price_usd":   "number | null",
+      "image_urls":  "string[]"
+    }
+  },
+  "response": {
+    "trust_score":  "integer 0–100",
+    "verdict":      "'safe' | 'suspicious' | 'likely_scam'",
+    "red_flags":    "string[]",
+    "llm_score":    "integer 0–100",
+    "price_score":  "integer 0–100"
+  },
+  "rules": {
+    "all fields nullable":     "never throw on a missing field, return null",
+    "red_flags never null":    "always return [], never null",
+    "image_urls never null":   "always return [], never null",
+    "trust_score derivation":  "100 - ((llm_score * 0.6) + (price_score * 0.4))"
+  },
+  "test_curl": "curl -X POST http://localhost:8000/analyze -H 'Content-Type: application/json' -d '{\"url\": null, \"description\": \"Wire transfer only, I am overseas\", \"price_usd\": 600, \"image_urls\": []}'"
+}
