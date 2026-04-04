@@ -520,7 +520,18 @@
         <input type="url" id="urlInput" placeholder="https://example.com/listing/123" />
       </div>
 
-      <div class="form-group">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group" style="margin-bottom:0">
+          <label for="titleInput">Listing title <span style="font-weight:400;color:var(--gray-text)">(optional)</span></label>
+          <input type="text" id="titleInput" placeholder="e.g. Spacious 2BR near downtown" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label for="priceInput">Monthly rent (USD) <span style="font-weight:400;color:var(--gray-text)">(optional)</span></label>
+          <input type="number" id="priceInput" placeholder="e.g. 1400" min="0" step="1" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:20px">
         <label for="textInput">Or paste listing text directly</label>
         <textarea id="textInput" placeholder="Paste the full listing description here..."></textarea>
       </div>
@@ -683,6 +694,8 @@
   // ── Try an example ──────────────────────────────────────
   function fillExample() {
     document.getElementById("urlInput").value = "";
+    document.getElementById("titleInput").value = "Beautiful 2BR apartment in Boston";
+    document.getElementById("priceInput").value = "650";
     document.getElementById("textInput").value =
       "Beautiful 2BR apartment in Boston — only $650/mo! Landlord is currently overseas on a missionary trip " +
       "and cannot show the unit in person. Keys will be mailed after deposit is received via Zelle or Bitcoin. " +
@@ -733,11 +746,12 @@
         await new Promise(r => setTimeout(r, 800)); // fake latency
         data = getDemoResult(text || url);
       } else {
+        const priceRaw = parseFloat(document.getElementById("priceInput").value);
         const payload = {
           url: url || null,
           description: text || null,
-          title: null,
-          price_usd: null,
+          title: document.getElementById("titleInput").value.trim() || null,
+          price_usd: isNaN(priceRaw) ? null : priceRaw,
           image_urls: [],
         };
         const res = await fetch(`${API}/analyze`, {
