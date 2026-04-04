@@ -4,30 +4,848 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RentSentry</title>
-</head>
-<body>
-  <h1>RentSentry</h1>
-  <!-- TODO Member D: build the UI here -->
-  <script>
-    // Change this to the Railway URL once Member A deploys
-    const API = "http://localhost:8000";
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    async function analyze(payload) {
-      const res = await fetch(`${API}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      return res.json();
+    :root {
+      --navy: #0f172a;
+      --navy-hover: #1e293b;
+      --gray-text: #64748b;
+      --gray-light: #f1f5f9;
+      --border: #e2e8f0;
+      --green: #16a34a;
+      --yellow: #d97706;
+      --red: #dc2626;
+      --radius: 12px;
     }
 
-    // Quick smoke test — open browser console to verify
-    analyze({
-      url: null,
-      description: "Wire transfer only, I am overseas",
-      price_usd: 600,
-      image_urls: [],
-    }).then(console.log).catch(console.error);
-  </script>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fff;
+      color: var(--navy);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 100;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      cursor: pointer;
+      color: var(--navy);
+      text-decoration: none;
+    }
+
+    .nav-logo svg { width: 28px; height: 28px; }
+
+    .nav-links { display: flex; gap: 4px; align-items: center; }
+
+    .nav-links a {
+      padding: 6px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--gray-text);
+      font-size: 0.92rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--navy); }
+
+    .nav-links a.active {
+      background: var(--navy);
+      color: #fff;
+    }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    main { max-width: 860px; margin: 0 auto; padding: 60px 24px 80px; }
+
+    /* ── HOME ── */
+    .hero {
+      text-align: center;
+      padding: 20px 0 48px;
+    }
+
+    .hero-icon { font-size: 3.5rem; margin-bottom: 16px; }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .hero p {
+      color: var(--gray-text);
+      font-size: 1.1rem;
+      max-width: 520px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+    }
+
+    .hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .btn-primary {
+      background: var(--navy);
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--navy-hover); }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--navy);
+      border: 2px solid var(--border);
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .btn-secondary:hover { border-color: #94a3b8; }
+
+    .feature-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .card-icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .card p { font-size: 0.9rem; color: var(--gray-text); line-height: 1.5; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { text-align: center; margin-bottom: 40px; }
+    .page-header h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+    .page-header p { color: var(--gray-text); font-size: 1rem; }
+
+    /* ── ANALYZE ── */
+    .analyze-form { max-width: 680px; margin: 0 auto; }
+
+    .demo-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .demo-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--navy);
+    }
+
+    .demo-label-hint { color: var(--gray-text); font-weight: 400; font-size: 0.9rem; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--navy);
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      border-color: #94a3b8;
+    }
+
+    .form-group input::placeholder, .form-group textarea::placeholder {
+      color: #94a3b8;
+    }
+
+    .form-group textarea { min-height: 160px; }
+
+    .analyze-btn {
+      width: 100%;
+      background: var(--navy);
+      color: #fff;
+      border: none;
+      padding: 16px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      margin-top: 4px;
+    }
+    .analyze-btn:hover { background: var(--navy-hover); }
+    .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Error banner */
+    .error-banner {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-banner.show { display: block; }
+
+    /* Loading spinner */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 32px;
+      color: var(--gray-text);
+      font-size: 0.95rem;
+    }
+    .loading.show { display: block; }
+    .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--navy);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result card */
+    .result-card {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-top: 28px;
+    }
+    .result-card.show { display: block; }
+
+    .result-header {
+      background: var(--gray-light);
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .score-badge {
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .score-badge.safe { color: var(--green); }
+    .score-badge.suspicious { color: var(--yellow); }
+    .score-badge.likely_scam { color: var(--red); }
+
+    .result-verdict h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+    .verdict-label { font-size: 0.9rem; color: var(--gray-text); }
+
+    .result-body { padding: 24px; }
+    .result-body h3 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+
+    .red-flags-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .red-flags-list li {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #7f1d1d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+    }
+
+    .no-flags {
+      color: var(--green);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .score-breakdown {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .score-breakdown h3 { margin-bottom: 12px; }
+
+    .score-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 0.88rem;
+    }
+    .score-bar-label { min-width: 120px; color: var(--gray-text); }
+    .score-bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--navy);
+    }
+    .score-bar-val { min-width: 32px; text-align: right; font-weight: 600; }
+
+    /* ── HISTORY ── */
+    .history-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .history-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .history-meta { min-width: 0; }
+    .history-source { font-weight: 600; font-size: 1rem; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-date { color: var(--gray-text); font-size: 0.85rem; }
+
+    .history-score-wrap { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .history-score { font-size: 1.8rem; font-weight: 800; }
+    .history-score.safe { color: var(--green); }
+    .history-score.suspicious { color: var(--yellow); }
+    .history-score.likely_scam { color: var(--red); }
+    .history-verdict { color: var(--gray-text); font-size: 0.9rem; }
+
+    .history-empty {
+      text-align: center;
+      color: var(--gray-text);
+      padding: 48px 0;
+      font-size: 0.95rem;
+    }
+
+    .clear-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      color: var(--gray-text);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      float: right;
+      margin-bottom: 16px;
+      font-family: inherit;
+    }
+    .clear-btn:hover { border-color: #94a3b8; color: var(--navy); }
+
+    /* ── TIPS ── */
+    .tips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .tip-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .tip-icon { font-size: 1.8rem; margin-bottom: 14px; }
+    .tip-card h3 { font-size: 0.97rem; font-weight: 700; margin-bottom: 8px; }
+    .tip-card p { font-size: 0.88rem; color: var(--gray-text); line-height: 1.6; }
+
+    /* ── ABOUT ── */
+    .about-content { max-width: 620px; margin: 0 auto; }
+    .about-section { margin-bottom: 36px; }
+    .about-section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
+    .about-section p { color: #374151; line-height: 1.7; font-size: 0.97rem; }
+
+    .about-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .about-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.95rem;
+      color: #374151;
+    }
+    .about-list li::before {
+      content: "•";
+      color: var(--navy);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav>
+  <a class="nav-logo" onclick="navigate('home')">
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 2L3 8v6c0 5.5 4.7 10.6 11 12 6.3-1.4 11-6.5 11-12V8L14 2z" fill="#0f172a"/>
+      <path d="M14 2L3 8v6c0 5.5 4.7 10.6 11 12 6.3-1.4 11-6.5 11-12V8L14 2z" fill="none" stroke="#dc2626" stroke-width="1.5"/>
+      <path d="M10 14l3 3 5-5" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    RentSentry
+  </a>
+  <div class="nav-links">
+    <a onclick="navigate('home')" data-page="home">Home</a>
+    <a onclick="navigate('analyze')" data-page="analyze">Analyze</a>
+    <a onclick="navigate('history')" data-page="history">History</a>
+    <a onclick="navigate('tips')" data-page="tips">Tips</a>
+    <a onclick="navigate('about')" data-page="about">About</a>
+  </div>
+</nav>
+
+<!-- ═══════════════ HOME ═══════════════ -->
+<div id="page-home" class="page">
+  <main>
+    <div class="hero">
+      <div class="hero-icon">🛡️</div>
+      <h1>Don't get scammed on your next rental</h1>
+      <p>RentSentry analyzes rental listings for red flags and gives you a trust score so you can rent with confidence.</p>
+      <div class="hero-btns">
+        <button class="btn-primary" onclick="navigate('analyze')">Analyze a listing</button>
+        <button class="btn-secondary" onclick="navigate('tips')">Learn scam tips</button>
+      </div>
+    </div>
+    <div class="feature-cards">
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <h3>Paste a listing</h3>
+        <p>Drop in a URL or copy-paste the listing text.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Instant analysis</h3>
+        <p>Our engine checks for common scam patterns and red flags.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">✅</div>
+        <h3>Get your score</h3>
+        <p>See a 0–100 trust score with a detailed breakdown.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════ ANALYZE ═══════════════ -->
+<div id="page-analyze" class="page">
+  <main>
+    <div class="page-header">
+      <h1>Analyze a Listing</h1>
+      <p>Paste a URL or listing text to check for scam signals</p>
+    </div>
+
+    <div class="analyze-form">
+      <label class="demo-toggle">
+        <input type="checkbox" id="demoMode" onchange="toggleDemo()" />
+        <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
+      </label>
+
+      <div class="error-banner" id="errorBanner"></div>
+
+      <div class="form-group">
+        <label for="urlInput">Paste listing URL</label>
+        <input type="url" id="urlInput" placeholder="https://example.com/listing/123" />
+      </div>
+
+      <div class="form-group">
+        <label for="textInput">Or paste listing text directly</label>
+        <textarea id="textInput" placeholder="Paste the full listing description here..."></textarea>
+      </div>
+
+      <button class="analyze-btn" id="analyzeBtn" onclick="submitAnalyze()">Analyze listing</button>
+
+      <div class="loading" id="loadingEl">
+        <div class="spinner"></div>
+        <div>Analyzing listing...</div>
+      </div>
+
+      <div class="result-card" id="resultCard">
+        <div class="result-header">
+          <div class="score-badge" id="scoreBadge"></div>
+          <div class="result-verdict">
+            <h2 id="verdictLabel"></h2>
+            <div class="verdict-label">Trust Score</div>
+          </div>
+        </div>
+        <div class="result-body">
+          <h3>Red Flags Detected</h3>
+          <ul class="red-flags-list" id="redFlagsList"></ul>
+
+          <div class="score-breakdown">
+            <h3>Score Breakdown</h3>
+            <div class="score-bar-row">
+              <span class="score-bar-label">LLM Analysis</span>
+              <div class="score-bar-track"><div class="score-bar-fill" id="llmBar"></div></div>
+              <span class="score-bar-val" id="llmVal"></span>
+            </div>
+            <div class="score-bar-row">
+              <span class="score-bar-label">Price Analysis</span>
+              <div class="score-bar-track"><div class="score-bar-fill" id="priceBar"></div></div>
+              <span class="score-bar-val" id="priceVal"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════ HISTORY ═══════════════ -->
+<div id="page-history" class="page">
+  <main>
+    <div class="page-header">
+      <h1>Analysis History</h1>
+      <p>Your recent listing analyses</p>
+    </div>
+    <button class="clear-btn" onclick="clearHistory()">Clear history</button>
+    <div style="clear:both"></div>
+    <div class="history-list" id="historyList"></div>
+  </main>
+</div>
+
+<!-- ═══════════════ TIPS ═══════════════ -->
+<div id="page-tips" class="page">
+  <main>
+    <div class="page-header">
+      <h1>Scam Prevention Tips</h1>
+      <p>Know the warning signs before you sign</p>
+    </div>
+    <div class="tips-grid">
+      <div class="tip-card">
+        <div class="tip-icon">💸</div>
+        <h3>Price too good to be true</h3>
+        <p>If the rent is significantly below market rate for the area, that's a major red flag. Scammers lure victims with unbeatable prices.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">📸</div>
+        <h3>Stock or stolen photos</h3>
+        <p>Reverse-image-search the listing photos. Scammers often steal photos from real listings or use stock imagery.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">🏖️</div>
+        <h3>Landlord is 'out of town'</h3>
+        <p>If the landlord says they can't show the unit because they're overseas, military, or on a mission trip — walk away.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">💳</div>
+        <h3>Wire transfer or crypto only</h3>
+        <p>Legitimate landlords accept checks or secure payment platforms. Requests for wire transfers, gift cards, or crypto are almost always scams.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">🔑</div>
+        <h3>No in-person tour</h3>
+        <p>Never sign a lease or send money without physically visiting the property. 'Virtual tours only' is a common scam tactic.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">📝</div>
+        <h3>Vague or copy-pasted descriptions</h3>
+        <p>Watch for generic listing text, excessive emojis, or descriptions that don't match the photos or address.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">⏰</div>
+        <h3>Urgency and pressure tactics</h3>
+        <p>Phrases like "act now," "first come first served," or artificial deadlines are used to prevent you from thinking clearly.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-icon">🏛️</div>
+        <h3>No verifiable address</h3>
+        <p>Always confirm the address exists and matches the photos. Search on Google Street View to verify the property looks as described.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════ ABOUT ═══════════════ -->
+<div id="page-about" class="page">
+  <main>
+    <div class="page-header">
+      <h1>About RentSentry</h1>
+      <p>A free tool to help renters spot scam listings before they lose money.</p>
+    </div>
+    <div class="about-content">
+      <div class="about-section">
+        <h2>How it works</h2>
+        <p>Paste a rental listing URL or the listing text into the analyzer. RentSentry checks for common scam indicators — suspiciously low pricing, pressure language, payment red flags, and more — then returns a trust score from 0 to 100 along with specific red flags found.</p>
+      </div>
+      <div class="about-section">
+        <h2>What we check</h2>
+        <ul class="about-list">
+          <li>Price vs. local market comparisons</li>
+          <li>Payment method requests (wire, crypto, gift cards)</li>
+          <li>Urgency and pressure language</li>
+          <li>Landlord availability claims</li>
+          <li>Listing quality signals (photos, description detail)</li>
+          <li>Known scam phrase patterns</li>
+        </ul>
+      </div>
+      <div class="about-section">
+        <h2>Limitations</h2>
+        <p>RentSentry is a screening tool, not a guarantee. Always visit properties in person, verify landlord identity, and never send money without a signed lease. When in doubt, trust your instincts.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── Config ──────────────────────────────────────────────
+  const API = "http://localhost:8000";
+  const HISTORY_KEY = "rentsentry_history";
+
+  // ── Routing ─────────────────────────────────────────────
+  function navigate(page) {
+    document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
+    document.querySelectorAll(".nav-links a").forEach(el => el.classList.remove("active"));
+
+    document.getElementById("page-" + page).classList.add("active");
+    const link = document.querySelector(`.nav-links a[data-page="${page}"]`);
+    if (link) link.classList.add("active");
+
+    if (page === "history") renderHistory();
+    window.scrollTo(0, 0);
+  }
+
+  // ── Demo mode ───────────────────────────────────────────
+  function toggleDemo() {
+    hideError();
+    hideResult();
+  }
+
+  function getDemoResult(text) {
+    const lower = (text || "").toLowerCase();
+    const scamWords = ["wire", "crypto", "overseas", "gift card", "urgent", "act now", "military", "zelle"];
+    const found = scamWords.filter(w => lower.includes(w));
+    const llm_score = Math.min(90, found.length * 25 + 10);
+    const price_score = 20;
+    const trust_score = Math.round(100 - (llm_score * 0.6 + price_score * 0.4));
+    const verdict = trust_score >= 70 ? "safe" : trust_score >= 40 ? "suspicious" : "likely_scam";
+    const red_flags = found.length
+      ? found.map(w => `Suspicious keyword detected: "${w}"`)
+      : ["No major red flags detected in demo mode"];
+    return { trust_score, verdict, red_flags, llm_score, price_score };
+  }
+
+  // ── Analyze ─────────────────────────────────────────────
+  async function submitAnalyze() {
+    const url = document.getElementById("urlInput").value.trim();
+    const text = document.getElementById("textInput").value.trim();
+    const isDemo = document.getElementById("demoMode").checked;
+
+    if (!url && !text) {
+      showError("Please enter a listing URL or paste listing text before analyzing.");
+      return;
+    }
+
+    hideError();
+    hideResult();
+    showLoading(true);
+    setAnalyzeDisabled(true);
+
+    try {
+      let data;
+      if (isDemo) {
+        await new Promise(r => setTimeout(r, 800)); // fake latency
+        data = getDemoResult(text || url);
+      } else {
+        const payload = {
+          url: url || null,
+          description: text || null,
+          title: null,
+          price_usd: null,
+          image_urls: [],
+        };
+        const res = await fetch(`${API}/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        data = await res.json();
+      }
+      renderResult(data, url || "Pasted text");
+    } catch (err) {
+      if (err.name === "TypeError" && err.message.includes("fetch")) {
+        showError("Could not reach the backend. Enable Demo mode to analyze without a server, or make sure the backend is running at " + API + ".");
+      } else {
+        showError("Analysis failed: " + err.message);
+      }
+    } finally {
+      showLoading(false);
+      setAnalyzeDisabled(false);
+    }
+  }
+
+  // ── Result rendering ─────────────────────────────────────
+  function verdictText(v) {
+    if (v === "safe") return "Looks Legit";
+    if (v === "suspicious") return "Proceed with Caution";
+    return "Likely Scam";
+  }
+
+  function renderResult(data, source) {
+    const { trust_score, verdict, red_flags, llm_score, price_score } = data;
+
+    const badge = document.getElementById("scoreBadge");
+    badge.textContent = trust_score;
+    badge.className = "score-badge " + verdict;
+
+    document.getElementById("verdictLabel").textContent = verdictText(verdict);
+
+    const list = document.getElementById("redFlagsList");
+    list.innerHTML = "";
+    if (!red_flags || red_flags.length === 0) {
+      list.innerHTML = '<li style="background:#f0fdf4;border-color:#bbf7d0;color:#14532d">No red flags detected</li>';
+    } else {
+      red_flags.forEach(flag => {
+        const li = document.createElement("li");
+        li.textContent = flag;
+        list.appendChild(li);
+      });
+    }
+
+    document.getElementById("llmBar").style.width = (llm_score || 0) + "%";
+    document.getElementById("llmVal").textContent = llm_score ?? "–";
+    document.getElementById("priceBar").style.width = (price_score || 0) + "%";
+    document.getElementById("priceVal").textContent = price_score ?? "–";
+
+    document.getElementById("resultCard").classList.add("show");
+
+    // Save to history
+    saveHistory({
+      source: source || "Pasted text",
+      date: new Date().toISOString().slice(0, 10),
+      trust_score,
+      verdict,
+    });
+  }
+
+  // ── History ──────────────────────────────────────────────
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+    catch { return []; }
+  }
+
+  function saveHistory(item) {
+    const hist = loadHistory();
+    hist.unshift(item);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, 50)));
+  }
+
+  function clearHistory() {
+    if (confirm("Clear all analysis history?")) {
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+    }
+  }
+
+  function renderHistory() {
+    const list = document.getElementById("historyList");
+    let items = loadHistory();
+
+    // Seed demo data if empty
+    if (items.length === 0) {
+      items = [
+        { source: "craigslist.org", date: "2026-04-03", trust_score: 85, verdict: "safe" },
+        { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious" },
+        { source: "Pasted text", date: "2026-04-01", trust_score: 12, verdict: "likely_scam" },
+        { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe" },
+      ];
+    }
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="history-empty">No analyses yet. <a onclick="navigate(\'analyze\')" style="color:var(--navy);cursor:pointer;font-weight:600">Analyze a listing</a> to get started.</div>';
+      return;
+    }
+
+    list.innerHTML = items.map(item => `
+      <div class="history-item">
+        <div class="history-meta">
+          <div class="history-source">${escapeHtml(item.source)}</div>
+          <div class="history-date">${item.date}</div>
+        </div>
+        <div class="history-score-wrap">
+          <span class="history-score ${item.verdict}">${item.trust_score}</span>
+          <span class="history-verdict">${verdictText(item.verdict)}</span>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // ── UI helpers ───────────────────────────────────────────
+  function showError(msg) {
+    const el = document.getElementById("errorBanner");
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+
+  function hideError() {
+    document.getElementById("errorBanner").classList.remove("show");
+  }
+
+  function showLoading(on) {
+    document.getElementById("loadingEl").classList.toggle("show", on);
+  }
+
+  function hideResult() {
+    document.getElementById("resultCard").classList.remove("show");
+  }
+
+  function setAnalyzeDisabled(on) {
+    document.getElementById("analyzeBtn").disabled = on;
+    document.getElementById("analyzeBtn").textContent = on ? "Analyzing…" : "Analyze listing";
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ── Boot ─────────────────────────────────────────────────
+  navigate("home");
+</script>
 </body>
 </html>
