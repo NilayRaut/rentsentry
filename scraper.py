@@ -1,6 +1,6 @@
 # pip install httpx beautifulsoup4 lxml
 """
-scraper.py — Member B only
+scraper.py 
 Given a URL, returns a dict matching the AnalyzeRequest fields.
 Returns None for any field it cannot extract — never throws.
 """
