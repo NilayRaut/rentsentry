@@ -332,8 +332,35 @@
       height: 100%;
       border-radius: 99px;
       background: var(--navy);
+      transition: width 0.5s ease;
     }
+    .score-bar-fill.risk-low    { background: #16a34a; }
+    .score-bar-fill.risk-medium { background: #d97706; }
+    .score-bar-fill.risk-high   { background: #dc2626; }
     .score-bar-val { min-width: 32px; text-align: right; font-weight: 600; }
+    .breakdown-hint {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--gray-text);
+      margin-left: 6px;
+    }
+    .breakdown-formula {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: var(--gray-text);
+    }
+    .try-example-btn {
+      background: none;
+      border: 1px dashed var(--border);
+      color: var(--gray-text);
+      font-size: 0.85rem;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .try-example-btn:hover { background: var(--bg); color: var(--text); }
 
     /* ── HISTORY ── */
     .history-list { display: flex; flex-direction: column; gap: 12px; }
@@ -498,6 +525,7 @@
         <textarea id="textInput" placeholder="Paste the full listing description here..."></textarea>
       </div>
 
+      <button class="try-example-btn" onclick="fillExample()">Try an example</button>
       <button class="analyze-btn" id="analyzeBtn" onclick="submitAnalyze()">Analyze listing</button>
 
       <div class="loading" id="loadingEl">
@@ -518,17 +546,18 @@
           <ul class="red-flags-list" id="redFlagsList"></ul>
 
           <div class="score-breakdown">
-            <h3>Score Breakdown</h3>
+            <h3>Score Breakdown <span class="breakdown-hint">suspicion score — higher = riskier</span></h3>
             <div class="score-bar-row">
-              <span class="score-bar-label">LLM Analysis</span>
+              <span class="score-bar-label">Text analysis</span>
               <div class="score-bar-track"><div class="score-bar-fill" id="llmBar"></div></div>
               <span class="score-bar-val" id="llmVal"></span>
             </div>
             <div class="score-bar-row">
-              <span class="score-bar-label">Price Analysis</span>
+              <span class="score-bar-label">Price signal</span>
               <div class="score-bar-track"><div class="score-bar-fill" id="priceBar"></div></div>
               <span class="score-bar-val" id="priceVal"></span>
             </div>
+            <p class="breakdown-formula">Trust score = 100 − (text × 60% + price × 40%)</p>
           </div>
         </div>
       </div>
@@ -634,6 +663,7 @@
 
 <script>
   // ── Config ──────────────────────────────────────────────
+  // 👇 Swap this one line when Member A posts the Render URL
   const API = "http://localhost:8000";
   const HISTORY_KEY = "rentsentry_history";
 
@@ -648,6 +678,17 @@
 
     if (page === "history") renderHistory();
     window.scrollTo(0, 0);
+  }
+
+  // ── Try an example ──────────────────────────────────────
+  function fillExample() {
+    document.getElementById("urlInput").value = "";
+    document.getElementById("textInput").value =
+      "Beautiful 2BR apartment in Boston — only $650/mo! Landlord is currently overseas on a missionary trip " +
+      "and cannot show the unit in person. Keys will be mailed after deposit is received via Zelle or Bitcoin. " +
+      "Must act now — many applicants interested. Send first/last month ($1,300) before lease is signed to hold " +
+      "the unit. No credit check needed. Contact me off-site at landlord_rentals@gmail.com. Photos available on request.";
+    document.getElementById("textInput").focus();
   }
 
   // ── Demo mode ───────────────────────────────────────────
@@ -748,9 +789,19 @@
       });
     }
 
-    document.getElementById("llmBar").style.width = (llm_score || 0) + "%";
+    function riskClass(score) {
+      if (score >= 60) return "risk-high";
+      if (score >= 30) return "risk-medium";
+      return "risk-low";
+    }
+    const llmBarEl = document.getElementById("llmBar");
+    llmBarEl.style.width = (llm_score || 0) + "%";
+    llmBarEl.className = "score-bar-fill " + riskClass(llm_score || 0);
     document.getElementById("llmVal").textContent = llm_score ?? "–";
-    document.getElementById("priceBar").style.width = (price_score || 0) + "%";
+
+    const priceBarEl = document.getElementById("priceBar");
+    priceBarEl.style.width = (price_score || 0) + "%";
+    priceBarEl.className = "score-bar-fill " + riskClass(price_score || 0);
     document.getElementById("priceVal").textContent = price_score ?? "–";
 
     document.getElementById("resultCard").classList.add("show");
