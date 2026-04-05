@@ -1,6 +1,6 @@
 # RentSentry
 
-Rental listing fraud detector. Paste a Craigslist URL or raw listing text — get back a trust score and a list of red flags.
+Rental listing fraud detector. Paste a Craigslist URL or raw listing text — get back a trust score, red flags, and positive location signals.
 
 ---
 
@@ -15,11 +15,12 @@ POST /analyze
       │
       ├─► llm_analysis.py   LLM scam detection (Member C)
       │        │
-      │        └─► suspicion_score, red_flags, reasoning
+      │        └─► suspicion_score, red_flags, reasoning, accessibility_signals
       │
       └─► main.py           orchestration + response (Member A)
                │
-               └─► trust_score, verdict, red_flags, llm_score, price_score
+               └─► trust_score, verdict, red_flags, llm_score, price_score,
+                   accessibility_signals
 ```
 
 **Trust score formula:**
@@ -31,12 +32,23 @@ trust_score = 100 - ((llm_score * 0.6) + (price_score * 0.4))
 
 ## Team
 
-| Member | File | Status |
-|--------|------|--------|
-| A | `main.py` | FastAPI server, orchestration |
+| Member | File | Responsibility |
+|--------|------|----------------|
+| A | `main.py` | FastAPI server, orchestration, scoring |
 | B | `scraper.py` | Craigslist scraper (httpx + BeautifulSoup) |
 | C | `llm_analysis.py` | LLM fraud analysis (OpenAI primary, Anthropic fallback) |
-| D | `frontend/index.html` | UI |
+| D | `frontend/index.html` | Vanilla JS/HTML UI |
+
+---
+
+## Features
+
+- **Trust score (0–100)** — weighted composite of LLM analysis + price heuristic
+- **Red flags** — short, plain-English fraud signals extracted by the LLM
+- **Accessibility signals** — positive location signals extracted from listing text (transit, ADA, parking, walkability, elevator)
+- **Demo mode** — keyword-based frontend analysis with no backend required
+- **Analysis history** — last 50 analyses stored in localStorage
+- **Dual LLM** — OpenAI `gpt-4o-mini` primary, Anthropic `claude-haiku-4-5` fallback
 
 ---
 
@@ -61,7 +73,6 @@ pip install -r requirements.txt anthropic httpx beautifulsoup4 lxml
 
 **4. Add your API keys**
 
-Copy `.env` and fill in your keys:
 ```bash
 cp .env.example .env   # or create .env manually
 ```
@@ -81,13 +92,15 @@ conda activate rentsentry
 uvicorn main:app --reload
 ```
 
+Open `frontend/index.html` directly in a browser — no build step needed.
+
 **Test with curl**
 ```bash
 curl -X POST http://localhost:8000/analyze \
   -H 'Content-Type: application/json' \
   -d '{
     "url": null,
-    "description": "Wire transfer only, I am overseas",
+    "description": "Wire transfer only, I am overseas on a missionary trip",
     "price_usd": 600,
     "image_urls": []
   }'
@@ -100,7 +113,8 @@ curl -X POST http://localhost:8000/analyze \
   "verdict": "likely_scam",
   "red_flags": ["Payment via wire transfer", "Landlord claims to be overseas"],
   "llm_score": 88,
-  "price_score": 70
+  "price_score": 70,
+  "accessibility_signals": []
 }
 ```
 
@@ -108,27 +122,26 @@ curl -X POST http://localhost:8000/analyze \
 
 ## API Contract
 
-Defined in [`contract.json`](contract.json).
-
 ### `POST /analyze`
 
 **Request**
-| Field | Type | Notes |
-|-------|------|-------|
-| `url` | `string \| null` | Craigslist listing URL |
-| `title` | `string \| null` | Listing title |
-| `description` | `string \| null` | Listing body text |
-| `price_usd` | `number \| null` | Monthly rent |
-| `image_urls` | `string[]` | Always an array |
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `url` | `string \| null` | `null` | Craigslist listing URL |
+| `title` | `string \| null` | `null` | Listing title |
+| `description` | `string \| null` | `null` | Listing body text |
+| `price_usd` | `number \| null` | `null` | Monthly rent |
+| `image_urls` | `string[]` | `[]` | Always an array |
 
 **Response**
 | Field | Type | Notes |
 |-------|------|-------|
 | `trust_score` | `integer 0–100` | Higher = safer |
-| `verdict` | `safe \| suspicious \| likely_scam` | |
+| `verdict` | `"safe" \| "suspicious" \| "likely_scam"` | |
 | `red_flags` | `string[]` | Always an array, never null |
 | `llm_score` | `integer 0–100` | Higher = more suspicious |
 | `price_score` | `integer 0–100` | Higher = more suspicious |
+| `accessibility_signals` | `string[]` | Positive location signals; empty if none found |
 
 ---
 
@@ -139,15 +152,16 @@ from llm_analysis import analyze_listing
 
 result = await analyze_listing(title, price_usd, description)
 # {
-#   "suspicion_score": int,   # 0-100
+#   "suspicion_score": int,            # 0-100
 #   "red_flags": list[str],
-#   "reasoning": str
+#   "reasoning": str,
+#   "accessibility_signals": list[str] # positive location signals
 # }
 ```
 
 - Primary model: `gpt-4o-mini` (OpenAI)
 - Fallback model: `claude-haiku-4-5` (Anthropic)
-- Never raises — returns `{"suspicion_score": 50, "red_flags": [], "reasoning": "Analysis unavailable."}` on any failure
+- Never raises — returns a safe default dict on any failure
 - Run self-tests: `python llm_analysis.py`
 
 ---
@@ -157,7 +171,7 @@ result = await analyze_listing(title, price_usd, description)
 ```python
 from scraper import scrape
 
-data = scrape("https://craigslist.org/...")
+data = await scrape("https://boston.craigslist.org/...")
 # {
 #   "title": str | None,
 #   "description": str | None,
@@ -167,10 +181,8 @@ data = scrape("https://craigslist.org/...")
 # }
 ```
 
-Test directly:
-```bash
-echo "https://craigslist.org/..." | python scraper.py
-```
+- Strips Craigslist QR footer from description automatically
+- Test directly: `python scraper.py` (prompts for a URL)
 
 ---
 
@@ -183,3 +195,13 @@ echo "https://craigslist.org/..." | python scraper.py
 | 41–65 | Suspicious — verify carefully |
 | 66–85 | Likely scam |
 | 86–100 | Almost certainly a scam |
+
+---
+
+## Verdict Thresholds
+
+| Trust Score | Verdict |
+|-------------|---------|
+| 70–100 | `safe` |
+| 40–69 | `suspicious` |
+| 0–39 | `likely_scam` |
