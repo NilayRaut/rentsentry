@@ -1139,7 +1139,7 @@
   <script>
     // ── Config ──────────────────────────────────────────────
     // 👇 Swap this one line when Member A posts the Render URL
-    const API = "https://rentsentry.onrender.com";
+    const API = "https://rentsentry.onrender.com/";
     const HISTORY_KEY = "rentsentry_history";
     let _fullDescription = "";
     let _descExpanded = false;
@@ -1420,23 +1420,24 @@
         document.getElementById("neighborhoodName").textContent =
           "Live OSM data for " + meta.neighborhood_detected.charAt(0).toUpperCase() + meta.neighborhood_detected.slice(1);
         function amenityTile(icon, label, value) {
-          const val = value !== null && value !== undefined ? value : "–";
+          const val = value !== null && value !== undefined ? value : "N/A";
+          const muted = val === "N/A";
           return `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
             <div style="font-size:1.4rem">${icon}</div>
-            <div style="font-size:1.3rem;font-weight:700;color:var(--navy);margin:4px 0">${val}</div>
+            <div style="font-size:1.3rem;font-weight:700;color:${muted ? "var(--gray-text)" : "var(--navy)"};margin:4px 0">${val}</div>
             <div style="font-size:0.78rem;color:var(--gray-text)">${label}</div>
           </div>`;
         }
-        const walkColor = { high: "#16a34a", medium: "#d97706", low: "#dc2626", unknown: "var(--gray-text)" };
-        const wIcon = { high: "🚶", medium: "🚶", low: "🚗", unknown: "❓" };
-        const w = neighborhood_info.walkability || "unknown";
+        const walkColor = {high:"#16a34a", medium:"#d97706", low:"#dc2626", unknown:"var(--gray-text)"};
+        const wIcon = {high:"🚶", medium:"🚶", low:"🚗", unknown:"❓"};
+        const w = neighborhood_info.walkability && neighborhood_info.walkability !== "unknown" ? neighborhood_info.walkability : null;
         neighborhoodGrid.innerHTML =
           amenityTile("🛒", "Grocery stores", neighborhood_info.grocery_stores) +
           amenityTile("🚌", "Transit stops", neighborhood_info.transit_stops) +
           amenityTile("🍽️", "Restaurants", neighborhood_info.restaurants) +
           `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:1.4rem">${wIcon[w]}</div>
-            <div style="font-size:1.1rem;font-weight:700;color:${walkColor[w]};margin:4px 0;text-transform:capitalize">${w}</div>
+            <div style="font-size:1.4rem">${w ? wIcon[w] : "❓"}</div>
+            <div style="font-size:1.1rem;font-weight:700;color:${w ? walkColor[w] : "var(--gray-text)"};margin:4px 0;text-transform:capitalize">${w || "N/A"}</div>
             <div style="font-size:0.78rem;color:var(--gray-text)">Walkability</div>
           </div>`;
         neighborhoodSection.style.display = "block";

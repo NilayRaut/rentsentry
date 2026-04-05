@@ -240,3 +240,40 @@ data = await scrape("https://boston.craigslist.org/...")
 - **Cloud history sync** — replace localStorage with a user account so history persists across devices
 - **PDF / shareable report** — one-click export of the full analysis as a PDF or shareable link
 - **Email / push alerts** — notify a user when a saved search URL changes trust score or gets flagged
+
+---
+
+## Browser Extension
+
+A Firefox extension that injects an inline trust badge on Craigslist and Facebook Marketplace listing pages — no copy-paste required.
+
+```
+extension/
+├── manifest.json          MV3 — permissions, content scripts, background
+├── background.js          Service worker — proxies POST /analyze
+├── content/
+│   ├── craigslist.js      Extracts listing from static DOM (#titletextonly, .price, #postingbody)
+│   └── facebook.js        MutationObserver for React-rendered pages
+├── shared/
+│   └── badge.js           Floating side panel UI (responsive: right-side on desktop, bottom bar on mobile)
+└── icons/
+    ├── icon16.png
+    ├── icon48.png
+    └── icon128.png
+```
+
+**Load in Firefox (temporary, for testing)**
+1. Go to `about:debugging` → This Firefox → Load Temporary Add-on
+2. Select `extension/manifest.json`
+3. Open any Craigslist listing — the RentSentry panel appears on the right within a few seconds
+
+**Package for AMO submission**
+```bash
+cd extension && zip -r ../rentsentry-extension.zip . && cd ..
+```
+Then upload `rentsentry-extension.zip` at [addons.mozilla.org](https://addons.mozilla.org/en-US/developers/).
+
+**Requirements**
+- Firefox 109+ (Manifest V3 support)
+- Backend must be running (update `DEFAULT_API` in `extension/background.js` to your Render URL)
+- A [privacy policy](https://github.com/NilayRaut/rentsentry#privacy) is required for AMO submission — listing text (title, description, price) is sent to the RentSentry backend for fraud analysis; no data is stored
