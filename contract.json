@@ -21,13 +21,18 @@
     "mode":                "'rent' | 'buy'",
     "market_price_score":  "integer 0–100 | null",
     "neighborhood_note":   "string | null",
-    "neighborhood_info":   "object | null"
+    "neighborhood_info":   "object | null",
+    "listing_title":       "string | null",
+    "listing_description": "string | null",
+    "listing_price_usd":   "number | null",
+    "listing_image_urls":  "string[]"
   },
   "rules": {
     "all fields nullable":     "never throw on a missing field, return null",
     "red_flags never null":    "always return [], never null",
     "image_urls never null":   "always return [], never null",
-    "trust_score derivation":  "100 - ((llm_score * 0.6) + (price_score * 0.4))"
+    "trust_score derivation":  "100 - ((llm_score * 0.6) + (price_score * 0.4))",
+    "listing_image_urls never null": "always return [], never null"
   },
   "test_curl": "curl -X POST http://localhost:8000/analyze -H 'Content-Type: application/json' -d '{\"url\": null, \"description\": \"Wire transfer only, I am overseas\", \"price_usd\": 600, \"image_urls\": []}'"
 }
