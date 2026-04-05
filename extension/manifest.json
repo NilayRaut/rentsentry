@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "RentSentry",
+  "version": "1.0",
+  "description": "Inline scam detection badge for rental listings on Craigslist and Facebook Marketplace",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "*://*.craigslist.org/*",
+    "*://www.facebook.com/marketplace/*",
+    "https://rentsentry.onrender.com/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.craigslist.org/*/d/*"],
+      "js": ["shared/badge.js", "content/craigslist.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://www.facebook.com/marketplace/item/*"],
+      "js": ["shared/badge.js", "content/facebook.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "rentsentry@rentsentry",
+      "strict_min_version": "109.0"
+    }
+  }
+}
