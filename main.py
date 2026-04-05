@@ -26,6 +26,7 @@ class AnalyzeRequest(BaseModel):
     description: Optional[str] = None
     price_usd: Optional[float] = None
     image_urls: List[str] = []
+    mode: str = "rent"  # "rent" or "buy"
 
 class AnalyzeResponse(BaseModel):
     trust_score: int
@@ -33,6 +34,8 @@ class AnalyzeResponse(BaseModel):
     red_flags: List[str]
     llm_score: int
     price_score: int
+    accessibility_signals: List[str] = []
+    mode: str = "rent"
 
 # --- HEALTH CHECK (STEP 6) ---
 @app.get("/")
@@ -83,7 +86,7 @@ async def analyze(req: AnalyzeRequest):
             )
 
     # 3. Call LLM with the final data
-    llm_result = await analyze_listing(title, price_usd, description)
+    llm_result = await analyze_listing(title, price_usd, description, mode=req.mode)
 
     # 4. Scoring Logic (STEP 4)
     llm_score = llm_result["suspicion_score"]
@@ -108,6 +111,8 @@ async def analyze(req: AnalyzeRequest):
         red_flags=llm_result["red_flags"],
         llm_score=llm_score,
         price_score=price_score,
+        accessibility_signals=llm_result.get("accessibility_signals", []),
+        mode=req.mode,
     )
 
 if __name__ == "__main__":
