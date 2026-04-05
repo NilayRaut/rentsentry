@@ -92,7 +92,7 @@ async def fetch_listing(url: str) -> Dict[str, Any]:
                 full_text = tag.get_text("\n", strip=True)
                 idx = full_text.find(_QR_MARKER)
                 if idx != -1:
-                    full_text = full_text[idx + len(_QR_MARKER):].strip()
+                    full_text = full_text[:idx].strip()
                 result["description"] = full_text or None
         except Exception:
             pass
