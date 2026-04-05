@@ -261,16 +261,27 @@ _BOSTON_MEDIANS: dict[str, int] = {
     "hyde park": 1800,
     "roslindale": 1900,
     "mattapan": 1700,
+    "medford": 2400,
+    "malden": 2100,
+    "quincy": 2200,
+    "waltham": 2300,
+    "newton": 2800,
+    "brookline": 3000,
+    "watertown": 2500,
+    "everett": 2000,
+    "revere": 2000,
 }
 
 
 def _neighborhood_median(neighborhood: str) -> int | None:
     """Return the hardcoded median rent for a Boston neighborhood, or None if unknown."""
     key = neighborhood.lower().strip()
+    if not key:
+        return None
     # Exact match first
     if key in _BOSTON_MEDIANS:
         return _BOSTON_MEDIANS[key]
-    # Partial match (e.g. "Back Bay, Boston" → "back bay")
+    # Partial match (e.g. "Back Bay, Boston" → "back bay") — only if key is non-empty
     for k, v in _BOSTON_MEDIANS.items():
         if k in key or key in k:
             return v
