@@ -85,15 +85,13 @@ async def fetch_listing(url: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        # Description — strip QR marker (appears at start or anywhere) and keep the rest
+        # Description — remove QR code div from DOM before extracting text
         try:
             tag = soup.select_one("#postingbody")
             if tag:
-                full_text = tag.get_text("\n", strip=True)
-                idx = full_text.find(_QR_MARKER)
-                if idx != -1:
-                    full_text = full_text[:idx].strip()
-                result["description"] = full_text or None
+                for qr in tag.select(".print-qrcode-container, .print-information"):
+                    qr.decompose()
+                result["description"] = tag.get_text("\n", strip=True).strip() or None
         except Exception:
             pass
 
