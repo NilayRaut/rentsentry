@@ -1173,7 +1173,12 @@
         if (meta.scrape_attempted) {
           metaContent.appendChild(metaChip("Scraped from URL", true, null));
         }
-        if (meta.price_data_source) {
+        if (!meta.in_boston_area) {
+          const geo = document.createElement("span");
+          geo.style.cssText = "display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:0.82rem;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe";
+          geo.textContent = "ℹ︎ Price analysis: Greater Boston only";
+          metaContent.appendChild(geo);
+        } else if (meta.price_data_source) {
           const src = document.createElement("span");
           src.style.cssText = "display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:0.82rem;background:#f1f5f9;color:var(--gray-text);border:1px solid var(--border)";
           src.textContent = "📊 Price source: " + meta.price_data_source;
@@ -1190,7 +1195,7 @@
       // Market price context
       const marketSection = document.getElementById("marketSection");
       const marketContent = document.getElementById("marketContent");
-      if (neighborhood_note && market_price_score !== null && market_price_score !== undefined) {
+      if (meta && meta.in_boston_area && neighborhood_note && market_price_score !== null && market_price_score !== undefined) {
         function riskClass(score) {
           if (score >= 60) return "risk-high";
           if (score >= 30) return "risk-medium";

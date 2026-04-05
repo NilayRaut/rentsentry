@@ -46,6 +46,19 @@ class AnalyzeResponse(BaseModel):
 def root():
     return {"status": "ok", "service": "RentSentry"}
 
+# --- GEOGRAPHY CHECK ---
+def _is_boston_area(url: str | None, neighborhood: str) -> bool:
+    """Return True if the listing is in the Greater Boston area.
+
+    Uses two signals: detected neighborhood (already covers Boston + suburbs
+    in _BOSTON_MEDIANS) and Craigslist subdomain from the URL.
+    """
+    if neighborhood:
+        return True
+    if url and "boston.craigslist.org" in url:
+        return True
+    return False
+
 # --- PRICE HEURISTIC (Boston-calibrated) ---
 def compute_price_score(price_usd: float | None) -> int:
     if price_usd is None:
@@ -105,7 +118,8 @@ async def analyze(req: AnalyzeRequest):
 
     # 4. Scoring Logic (STEP 4)
     llm_score = llm_result["suspicion_score"]
-    price_score = compute_price_score(price_usd)
+    in_boston = _is_boston_area(req.url, hood)
+    price_score = compute_price_score(price_usd) if in_boston else 20
 
     # Calculate weighted penalty
     penalty = (llm_score * 0.6) + (price_score * 0.4)
@@ -126,6 +140,7 @@ async def analyze(req: AnalyzeRequest):
         "neighborhood_detected": hood or None,
         "scrape_attempted": bool(req.url),
         "price_data_source": market_result.get("note", "").split("source=")[-1].rstrip(")") if market_result.get("note") and "source=" in market_result.get("note", "") else None,
+        "in_boston_area": in_boston,
     }
     return AnalyzeResponse(
         trust_score=trust_score,
