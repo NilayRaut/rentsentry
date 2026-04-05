@@ -370,13 +370,18 @@
       border-radius: var(--radius);
       padding: 18px 24px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-top {
+      display: flex;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
     }
 
-    .history-meta { min-width: 0; }
-    .history-source { font-weight: 600; font-size: 1rem; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-source { font-weight: 600; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .history-date { color: var(--gray-text); font-size: 0.85rem; }
 
     .history-score-wrap { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -385,6 +390,35 @@
     .history-score.suspicious { color: var(--yellow); }
     .history-score.likely_scam { color: var(--red); }
     .history-verdict { color: var(--gray-text); font-size: 0.9rem; }
+
+    .history-flags { margin-top: 6px; }
+    .history-flags summary {
+      font-size: 0.85rem;
+      color: var(--red);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    .history-flags summary::-webkit-details-marker { display: none; }
+    .history-flags summary::before { content: "▶ "; font-size: 0.7rem; }
+    .history-flags[open] summary::before { content: "▼ "; }
+    .history-flags ul {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      list-style: none;
+    }
+    .history-flags ul li {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #7f1d1d;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+    .history-no-flags { font-size: 0.85rem; color: var(--green); margin-top: 4px; font-weight: 500; }
 
     .history-empty {
       text-align: center;
@@ -513,18 +547,6 @@
         <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
       </label>
 
-      <!-- Rent / Buy mode toggle -->
-      <div class="form-group" style="margin-bottom:16px">
-        <label style="display:block;margin-bottom:8px;font-weight:600">Listing type</label>
-        <div style="display:flex;gap:20px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
-            <input type="radio" name="mode" value="rent" checked /> Rent
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
-            <input type="radio" name="mode" value="buy" /> Buy
-          </label>
-        </div>
-      </div>
 
       <div class="error-banner" id="errorBanner"></div>
 
@@ -772,7 +794,6 @@
           title: document.getElementById("titleInput").value.trim() || null,
           price_usd: isNaN(priceRaw) ? null : priceRaw,
           image_urls: [],
-          mode: document.querySelector('input[name="mode"]:checked').value,
         };
         const res = await fetch(`${API}/analyze`, {
           method: "POST",
@@ -856,13 +877,22 @@
 
     document.getElementById("resultCard").classList.add("show");
 
-    // Save to history
+    // Save to history (grab title before clearing inputs)
+    const titleVal = document.getElementById("titleInput").value.trim();
     saveHistory({
       source: source || "Pasted text",
+      title: titleVal || null,
       date: new Date().toISOString().slice(0, 10),
       trust_score,
       verdict,
+      red_flags: red_flags || [],
     });
+
+    // Clear inputs for next analysis
+    document.getElementById("urlInput").value = "";
+    document.getElementById("titleInput").value = "";
+    document.getElementById("priceInput").value = "";
+    document.getElementById("textInput").value = "";
   }
 
   // ── History ──────────────────────────────────────────────
@@ -891,10 +921,10 @@
     // Seed demo data if empty
     if (items.length === 0) {
       items = [
-        { source: "craigslist.org", date: "2026-04-03", trust_score: 85, verdict: "safe" },
-        { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious" },
-        { source: "Pasted text", date: "2026-04-01", trust_score: 12, verdict: "likely_scam" },
-        { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe" },
+        { source: "craigslist.org/boston", date: "2026-04-03", trust_score: 85, verdict: "safe", red_flags: [] },
+        { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious", red_flags: ["Requests wire transfer", "No in-person viewing offered"] },
+        { source: "Pasted text", title: "2BR Boston — $650/mo", date: "2026-04-01", trust_score: 12, verdict: "likely_scam", red_flags: ["Overseas landlord claimed", "Wire transfer only", "Urgency pressure tactics", "Deposit before viewing"] },
+        { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe", red_flags: [] },
       ];
     }
 
@@ -903,18 +933,29 @@
       return;
     }
 
-    list.innerHTML = items.map(item => `
-      <div class="history-item">
-        <div class="history-meta">
-          <div class="history-source">${escapeHtml(item.source)}</div>
+    list.innerHTML = items.map(item => {
+      const displayTitle = escapeHtml((item.title || item.source || "Unknown listing").slice(0, 80));
+      const flags = item.red_flags || [];
+      const flagsHtml = flags.length > 0
+        ? `<details class="history-flags">
+             <summary>${flags.length} red flag${flags.length !== 1 ? "s" : ""} detected</summary>
+             <ul>${flags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>
+           </details>`
+        : `<p class="history-no-flags">No red flags detected</p>`;
+
+      return `
+        <div class="history-item">
+          <div class="history-top">
+            <div class="history-source">${displayTitle}</div>
+            <div class="history-score-wrap">
+              <span class="history-score ${item.verdict}">${item.trust_score}</span>
+              <span class="history-verdict">${verdictText(item.verdict)}</span>
+            </div>
+          </div>
           <div class="history-date">${item.date}</div>
-        </div>
-        <div class="history-score-wrap">
-          <span class="history-score ${item.verdict}">${item.trust_score}</span>
-          <span class="history-verdict">${verdictText(item.verdict)}</span>
-        </div>
-      </div>
-    `).join("");
+          ${flagsHtml}
+        </div>`;
+    }).join("");
   }
 
   // ── UI helpers ───────────────────────────────────────────
