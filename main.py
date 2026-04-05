@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 # --- IMPORTING YOUR TEAMMATES' WORK ---
-from scraper import scrape           # Member B
+from scraper import fetch_listing       # Member B
 from llm_analysis import analyze_listing # Member C
 
 app = FastAPI()
@@ -39,19 +39,19 @@ class AnalyzeResponse(BaseModel):
 def root():
     return {"status": "ok", "service": "RentSentry"}
 
-# --- PRICE HEURISTIC (STEP 3) ---
+# --- PRICE HEURISTIC (Boston-calibrated) ---
 def compute_price_score(price_usd: float | None) -> int:
     if price_usd is None:
         return 20
-    if price_usd < 500:
-        return 90
-    if price_usd < 800:
-        return 75
-    if price_usd < 1200:
-        return 55
-    if price_usd < 1800:
-        return 25
-    return 5
+    if price_usd < 700:
+        return 90   # impossibly low anywhere in Boston
+    if price_usd < 1100:
+        return 75   # scam-range for Boston
+    if price_usd < 1500:
+        return 55   # suspicious — very cheap for Boston
+    if price_usd < 2200:
+        return 25   # below average but plausible
+    return 5        # normal Boston rent range
 
 # --- THE MAIN BRAIN (STEP 1 & 2) ---
 @app.post("/analyze", response_model=AnalyzeResponse)
@@ -65,15 +65,22 @@ async def analyze(req: AnalyzeRequest):
     # 2. Parallel Execution: Run Scraper and LLM at the same time
     # We call scrape() only if a URL exists
     if req.url:
-        # Start the scrape and the LLM analysis simultaneously
-        scraped_task = scrape(req.url)
-        # We use a placeholder for now since we need scraped data FOR the LLM
-        scraped_data = await scraped_task
-        
-        # Merge Logic: Scraped values win if they aren't None
+        scraped_data = await fetch_listing(req.url)
+
+        # Merge logic: scraped values win if they aren't None
         title = scraped_data.get("title") or title
         description = scraped_data.get("description") or description
         price_usd = scraped_data.get("price_usd") or price_usd
+
+        # If scraper got nothing (Zillow/blocked site), fall back to pasted text.
+        # If there's no pasted text either, return a clear error instead of a
+        # meaningless hardcoded 62.
+        if not any([title, description, price_usd]):
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=422,
+                detail="Could not extract listing data from this URL. The site may block scrapers (e.g. Zillow). Try pasting the listing text directly."
+            )
 
     # 3. Call LLM with the final data
     llm_result = await analyze_listing(title, price_usd, description)
