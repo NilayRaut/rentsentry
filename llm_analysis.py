@@ -62,6 +62,7 @@ Red flags to look for (each one found raises the score significantly):
 - Price impossibly low for the claimed location (e.g., $650/mo for a 2BR near downtown Boston)
 - Requests personal information (SSN, bank info) upfront before any showing
 - Photos described as "not available right now" or "will send later"
+- No verifiable address, building name, or unit number — listing cannot be searched, reviewed, or confirmed to exist
 
 Legitimate signals that LOWER the score (do NOT treat these as red flags):
 - Offers to schedule a showing, open house, or in-person visit — this is a strong legitimacy signal
@@ -276,6 +277,105 @@ def _neighborhood_median(neighborhood: str) -> int | None:
     return None
 
 
+def _extract_neighborhood(title: str | None, description: str | None) -> str:
+    """Scan listing text for a known Boston neighborhood. Returns lowercase match or ''."""
+    combined = " ".join(filter(None, [title, description])).lower()
+    if not combined:
+        return ""
+    for neighborhood in _BOSTON_MEDIANS:
+        if neighborhood in combined:
+            return neighborhood
+    return ""
+
+
+async def _do_amenities_fetch(neighborhood: str) -> dict:
+    """Inner fetch — geocode neighborhood then query OSM for nearby amenities."""
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(4.0),
+        follow_redirects=True,
+        headers={"User-Agent": "RentSentry/1.0 (rental-fraud-detector)"},
+    ) as client:
+        # Geocode via Nominatim
+        geo_resp = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": f"{neighborhood}, Boston, MA", "format": "json", "limit": "1"},
+        )
+        geo_resp.raise_for_status()
+        geo_data = geo_resp.json()
+        if not geo_data:
+            return {"grocery_stores": None, "transit_stops": None,
+                    "restaurants": None, "walkability": "unknown"}
+
+        lat = float(geo_data[0]["lat"])
+        lon = float(geo_data[0]["lon"])
+
+        # Three named sets, each with own `out count` → 3 count elements in response
+        query = (
+            f"[out:json][timeout:4];\n"
+            f'node["shop"~"supermarket|convenience"](around:1000,{lat},{lon})->.g;\n'
+            f".g out count;\n"
+            f"(\n"
+            f'  node["public_transport"="stop_position"](around:600,{lat},{lon});\n'
+            f'  node["highway"="bus_stop"](around:600,{lat},{lon});\n'
+            f'  node["railway"="subway_entrance"](around:600,{lat},{lon});\n'
+            f")->.t;\n"
+            f".t out count;\n"
+            f"(\n"
+            f'  node["amenity"~"restaurant|fast_food"](around:500,{lat},{lon});\n'
+            f")->.r;\n"
+            f".r out count;\n"
+        )
+        op_resp = await client.post(
+            "https://overpass-api.de/api/interpreter",
+            content=query,
+            headers={"Content-Type": "text/plain"},
+        )
+        op_resp.raise_for_status()
+        op_data = op_resp.json()
+
+        counts = [
+            int(el.get("tags", {}).get("total", 0))
+            for el in op_data.get("elements", [])
+            if el.get("type") == "count"
+        ]
+        if len(counts) < 3:
+            return {"grocery_stores": None, "transit_stops": None,
+                    "restaurants": None, "walkability": "unknown"}
+
+        grocery, transit, restaurants = counts[0], counts[1], counts[2]
+        if grocery >= 2 and transit >= 3:
+            walkability = "high"
+        elif grocery == 0 and transit < 2:
+            walkability = "low"
+        else:
+            walkability = "medium"
+
+        return {
+            "grocery_stores": grocery,
+            "transit_stops": transit,
+            "restaurants": restaurants,
+            "walkability": walkability,
+        }
+
+
+async def neighborhood_amenities(neighborhood: str) -> dict:
+    """Fetch nearby grocery, transit, and restaurant counts via free OSM APIs.
+
+    Returns:
+        {"grocery_stores": int|None, "transit_stops": int|None,
+         "restaurants": int|None, "walkability": "high"|"medium"|"low"|"unknown"}
+    Never raises.
+    """
+    FALLBACK = {"grocery_stores": None, "transit_stops": None,
+                "restaurants": None, "walkability": "unknown"}
+    if not neighborhood or not _HTTPX_AVAILABLE:
+        return FALLBACK
+    try:
+        return await asyncio.wait_for(_do_amenities_fetch(neighborhood), timeout=5.0)
+    except Exception:
+        return FALLBACK
+
+
 async def _fetch_craigslist_prices(neighborhood: str) -> list[float]:
     """Fetch up to 20 apartment listing prices from Craigslist Boston RSS."""
     if not _HTTPX_AVAILABLE:
@@ -375,8 +475,9 @@ async def price_analysis(price_usd: float | None, neighborhood: str) -> dict:
         score = 0  # price at or above median — not suspicious
 
     direction = "below" if z >= 0 else "above"
+    hood_label = f" {neighborhood}" if neighborhood else ""
     note = (
-        f"Price is {abs(z):.1f} SD {direction} {neighborhood} median "
+        f"Price is {abs(z):.1f} SD {direction}{hood_label} median "
         f"(median=${int(median):,}, source={source})"
     )
 

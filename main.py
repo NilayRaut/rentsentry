@@ -8,7 +8,7 @@ from typing import List, Optional
 
 # --- IMPORTING YOUR TEAMMATES' WORK ---
 from scraper import fetch_listing       # Member B
-from llm_analysis import analyze_listing # Member C
+from llm_analysis import analyze_listing, price_analysis, neighborhood_amenities, _extract_neighborhood  # Member C
 
 app = FastAPI()
 
@@ -36,6 +36,9 @@ class AnalyzeResponse(BaseModel):
     price_score: int
     accessibility_signals: List[str] = []
     mode: str = "rent"
+    market_price_score: Optional[int] = None
+    neighborhood_note: Optional[str] = None
+    neighborhood_info: Optional[dict] = None
 
 # --- HEALTH CHECK (STEP 6) ---
 @app.get("/")
@@ -59,7 +62,7 @@ def compute_price_score(price_usd: float | None) -> int:
 # --- THE MAIN BRAIN (STEP 1 & 2) ---
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest):
-    
+
     # 1. Prepare data variables
     title = req.title
     description = req.description
@@ -88,6 +91,17 @@ async def analyze(req: AnalyzeRequest):
     # 3. Call LLM with the final data
     llm_result = await analyze_listing(title, price_usd, description, mode=req.mode)
 
+    # 3b. Market price + neighborhood amenities (parallel when neighborhood found)
+    hood = _extract_neighborhood(title, description)
+    if hood:
+        market_result, amenities = await asyncio.gather(
+            price_analysis(price_usd, hood),
+            neighborhood_amenities(hood),
+        )
+    else:
+        market_result = await price_analysis(price_usd, hood)
+        amenities = None
+
     # 4. Scoring Logic (STEP 4)
     llm_score = llm_result["suspicion_score"]
     price_score = compute_price_score(price_usd)
@@ -113,6 +127,9 @@ async def analyze(req: AnalyzeRequest):
         price_score=price_score,
         accessibility_signals=llm_result.get("accessibility_signals", []),
         mode=req.mode,
+        market_price_score=market_result.get("price_score"),
+        neighborhood_note=market_result.get("note"),
+        neighborhood_info=amenities,
     )
 
 if __name__ == "__main__":
