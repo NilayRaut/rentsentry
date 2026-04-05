@@ -28,7 +28,7 @@ anthropic_client = AsyncAnthropic(api_key=_anthropic_key) if _anthropic_key else
 OPENAI_MODEL = "gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 
-SYSTEM_PROMPT = """You are a rental fraud analyst specializing in detecting apartment listing scams.
+_SYSTEM_PROMPT_RENT = """You are a rental fraud analyst specializing in detecting apartment listing scams.
 
 You will be given a rental listing's title, price, and description. Analyze it for fraud indicators.
 
@@ -38,7 +38,8 @@ The JSON must have exactly these fields:
 {
   "suspicion_score": <integer 0-100>,
   "red_flags": [<short plain-English string>, ...],
-  "reasoning": "<one sentence summary>"
+  "reasoning": "<one sentence summary>",
+  "accessibility_signals": [<short plain-English string>, ...]
 }
 
 Scoring guide:
@@ -79,30 +80,87 @@ CRITICAL RULES:
 
 red_flags must be short (under 10 words each), specific, and plain English.
 If no red flags are found, red_flags must be an empty list [].
-Never return null for red_flags."""
+Never return null for red_flags.
+
+Also extract accessibility_signals: a list of positive location/accessibility signals found in the listing text.
+Examples: "mentions transit access", "ADA accessible", "elevator building", "parking included", "high walkability score mentioned".
+Return an empty list if none found. Never return null for accessibility_signals."""
+
+_SYSTEM_PROMPT_BUY = """You are a real estate fraud analyst specializing in detecting home purchase listing scams.
+
+You will be given a property listing's title, price, and description. Analyze it for fraud indicators.
+
+You MUST respond with ONLY a valid JSON object. No explanation, no markdown, no code fences. Just raw JSON.
+
+The JSON must have exactly these fields:
+{
+  "suspicion_score": <integer 0-100>,
+  "red_flags": [<short plain-English string>, ...],
+  "reasoning": "<one sentence summary>",
+  "accessibility_signals": [<short plain-English string>, ...]
+}
+
+Scoring guide:
+- 0-20: Looks legitimate. Normal language, reasonable price, no pressure tactics, allows inspection.
+- 21-40: Minor concerns. One or two soft signals worth noting.
+- 41-65: Suspicious. Multiple red flags present. Buyer should verify carefully.
+- 66-85: Likely scam. Strong fraud indicators present.
+- 86-100: Almost certainly a scam. Classic fraud pattern: multiple buy-specific fraud signals present together.
+
+Red flags to look for (each one found raises the score significantly):
+- Deed or title fraud indicators (seller can't produce clear title, title company unverifiable)
+- Fake or unknown escrow company — always verify escrow independently
+- "As-is" sale combined with high-pressure tactics to close quickly
+- Refuses to allow home inspection or no inspection contingency permitted
+- Wire transfer demanded for closing costs or earnest money
+- Unusually fast closing pressure ("must close in 5 days", "cash only, no contingencies")
+- Seller claims to be overseas or unavailable for any in-person meetings
+- Price dramatically below comparable sales in the area
+- Requests personal financial information (SSN, bank account) before any formal agreement
+- Vague or missing property disclosures
+
+Legitimate signals that LOWER the score (do NOT treat these as red flags):
+- Standard escrow process with a recognized title company
+- Allows home inspection contingency — this is a strong legitimacy signal
+- Reasonable price for comparable sales in the neighborhood
+- Specific, verifiable property details (lot size, year built, permits)
+- No urgency language, no overseas story, no unusual payment demands
+
+CRITICAL RULES:
+1. Multiple strong red flags together (title fraud + fake escrow + no inspection + wire transfer) → score must be 86+
+2. Zero red flags with legitimate signals → score must be 20 or below
+3. A single soft signal alone should not push a score above 35
+
+red_flags must be short (under 10 words each), specific, and plain English.
+If no red flags are found, red_flags must be an empty list [].
+Never return null for red_flags.
+
+Also extract accessibility_signals: a list of positive location/accessibility signals found in the listing text.
+Examples: "mentions transit access", "ADA accessible", "elevator building", "parking included", "high walkability score mentioned".
+Return an empty list if none found. Never return null for accessibility_signals."""
 
 
-async def _call_openai(user_message: str) -> str:
+async def _call_openai(user_message: str, system_prompt: str) -> str:
     if openai_client is None:
         raise RuntimeError("OPENAI_API_KEY not set")
     response = await openai_client.chat.completions.create(
         model=OPENAI_MODEL,
         max_tokens=512,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
     )
     return response.choices[0].message.content.strip()
 
 
-async def _call_anthropic(user_message: str) -> str:
+async def _call_anthropic(user_message: str, system_prompt: str) -> str:
     if anthropic_client is None:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
     response = await anthropic_client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=512,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
     return response.content[0].text.strip()
@@ -116,6 +174,7 @@ def _parse_raw(raw: str) -> dict:
         "suspicion_score": max(0, min(100, int(parsed.get("suspicion_score", 50)))),
         "red_flags": [str(f) for f in parsed.get("red_flags", []) if f][:10],
         "reasoning": str(parsed.get("reasoning", ""))[:300],
+        "accessibility_signals": [str(s) for s in parsed.get("accessibility_signals", []) if s][:10],
     }
 
 
@@ -123,29 +182,39 @@ async def analyze_listing(
     title: str | None,
     price_usd: float | None,
     description: str | None,
+    mode: str = "rent",
 ) -> dict:
     """
-    Analyze a rental listing for scam indicators.
+    Analyze a listing for scam indicators.
     Primary: OpenAI gpt-4o-mini. Fallback: Claude Haiku.
+
+    Args:
+        mode: "rent" (default) or "buy" — selects the appropriate red-flag set.
 
     Returns:
         {
             "suspicion_score": int (0-100),
             "red_flags": list[str],
-            "reasoning": str
+            "reasoning": str,
+            "accessibility_signals": list[str]
         }
     Returns safe default on any error — never raises.
     """
-    DEFAULT = {"suspicion_score": 50, "red_flags": [], "reasoning": "Analysis unavailable."}
+    DEFAULT = {"suspicion_score": 50, "red_flags": [], "reasoning": "Analysis unavailable.", "accessibility_signals": []}
 
     if not description and not title:
         return DEFAULT
 
-    price_str = f"${price_usd:,.0f}/mo" if price_usd else "Not listed"
-    user_message = f"""Analyze this rental listing for fraud:
+    # Select prompt based on mode
+    system_prompt = _SYSTEM_PROMPT_BUY if mode == "buy" else _SYSTEM_PROMPT_RENT
+
+    price_label = "Price" if mode == "rent" else "Listing price"
+    price_str = f"${price_usd:,.0f}" + ("/mo" if mode == "rent" else "") if price_usd else "Not listed"
+    listing_type = "rental" if mode == "rent" else "property purchase"
+    user_message = f"""Analyze this {listing_type} listing for fraud:
 
 Title: {title or 'Not provided'}
-Price: {price_str}
+{price_label}: {price_str}
 Description:
 {(description or 'Not provided')[:3000]}
 
@@ -153,14 +222,14 @@ Return only the JSON object."""
 
     # Try OpenAI first
     try:
-        raw = await _call_openai(user_message)
+        raw = await _call_openai(user_message, system_prompt)
         return _parse_raw(raw)
     except Exception:
         pass
 
     # Fallback to Anthropic
     try:
-        raw = await _call_anthropic(user_message)
+        raw = await _call_anthropic(user_message, system_prompt)
         return _parse_raw(raw)
     except Exception:
         return DEFAULT

@@ -513,6 +513,19 @@
         <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
       </label>
 
+      <!-- Rent / Buy mode toggle -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="display:block;margin-bottom:8px;font-weight:600">Listing type</label>
+        <div style="display:flex;gap:20px">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
+            <input type="radio" name="mode" value="rent" checked /> Rent
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
+            <input type="radio" name="mode" value="buy" /> Buy
+          </label>
+        </div>
+      </div>
+
       <div class="error-banner" id="errorBanner"></div>
 
       <div class="form-group">
@@ -555,6 +568,12 @@
         <div class="result-body">
           <h3>Red Flags Detected</h3>
           <ul class="red-flags-list" id="redFlagsList"></ul>
+
+          <!-- Accessibility & location signals — hidden until signals are present -->
+          <div id="accessibilitySection" style="display:none;margin-top:20px">
+            <h3 style="color:#16a34a;margin-bottom:10px">Location &amp; Accessibility Signals</h3>
+            <ul id="accessibilityList" style="display:flex;flex-direction:column;gap:8px;padding:0"></ul>
+          </div>
 
           <div class="score-breakdown">
             <h3>Score Breakdown <span class="breakdown-hint">suspicion score — higher = riskier</span></h3>
@@ -753,6 +772,7 @@
           title: document.getElementById("titleInput").value.trim() || null,
           price_usd: isNaN(priceRaw) ? null : priceRaw,
           image_urls: [],
+          mode: document.querySelector('input[name="mode"]:checked').value,
         };
         const res = await fetch(`${API}/analyze`, {
           method: "POST",
@@ -783,7 +803,7 @@
   }
 
   function renderResult(data, source) {
-    const { trust_score, verdict, red_flags, llm_score, price_score } = data;
+    const { trust_score, verdict, red_flags, llm_score, price_score, accessibility_signals } = data;
 
     const badge = document.getElementById("scoreBadge");
     badge.textContent = trust_score;
@@ -801,6 +821,22 @@
         li.textContent = flag;
         list.appendChild(li);
       });
+    }
+
+    // Accessibility & location signals (green section, only shown when present)
+    const accessSection = document.getElementById("accessibilitySection");
+    const accessList = document.getElementById("accessibilityList");
+    if (accessibility_signals && accessibility_signals.length > 0) {
+      accessList.innerHTML = "";
+      accessibility_signals.forEach(signal => {
+        const li = document.createElement("li");
+        li.style.cssText = "background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;border-radius:8px;padding:8px 12px;list-style:none;font-size:0.9rem";
+        li.textContent = "📍 " + signal;
+        accessList.appendChild(li);
+      });
+      accessSection.style.display = "block";
+    } else {
+      accessSection.style.display = "none";
     }
 
     function riskClass(score) {
