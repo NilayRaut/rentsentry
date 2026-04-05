@@ -453,6 +453,9 @@ async def price_analysis(price_usd: float | None, neighborhood: str) -> dict:
     if price_usd is None:
         return {"price_score": 50, "median_price": None, "note": "No price provided."}
 
+    if not neighborhood:
+        return NEUTRAL
+
     # Try live Craigslist RSS first
     source = "Craigslist RSS"
     try:

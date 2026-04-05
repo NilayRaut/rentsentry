@@ -39,6 +39,7 @@ class AnalyzeResponse(BaseModel):
     market_price_score: Optional[int] = None
     neighborhood_note: Optional[str] = None
     neighborhood_info: Optional[dict] = None
+    meta: Optional[dict] = None
 
 # --- HEALTH CHECK (STEP 6) ---
 @app.get("/")
@@ -119,6 +120,13 @@ async def analyze(req: AnalyzeRequest):
         verdict = "likely_scam"
 
     # 6. Return Result (STEP 5)
+    meta = {
+        "description_found": bool(description),
+        "price_found": price_usd is not None,
+        "neighborhood_detected": hood or None,
+        "scrape_attempted": bool(req.url),
+        "price_data_source": market_result.get("note", "").split("source=")[-1].rstrip(")") if market_result.get("note") and "source=" in market_result.get("note", "") else None,
+    }
     return AnalyzeResponse(
         trust_score=trust_score,
         verdict=verdict,
@@ -130,6 +138,7 @@ async def analyze(req: AnalyzeRequest):
         market_price_score=market_result.get("price_score"),
         neighborhood_note=market_result.get("note"),
         neighborhood_info=amenities,
+        meta=meta,
     )
 
 if __name__ == "__main__":

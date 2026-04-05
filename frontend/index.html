@@ -853,6 +853,25 @@
               <ul id="accessibilityList" style="display:flex;flex-direction:column;gap:8px;padding:0"></ul>
             </div>
 
+            <!-- Data transparency — what the engine actually saw -->
+            <div id="metaSection" style="margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;font-size:0.88rem;color:var(--gray-text)">
+              <div style="font-weight:600;color:var(--navy);margin-bottom:8px">What we analyzed</div>
+              <div id="metaContent" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            </div>
+
+            <!-- Market price context — hidden until neighborhood detected -->
+            <div id="marketSection" style="display:none;margin-top:20px">
+              <h3 style="margin-bottom:10px">Market Price Context</h3>
+              <div id="marketContent"></div>
+            </div>
+
+            <!-- Neighborhood amenities — hidden until data available -->
+            <div id="neighborhoodSection" style="display:none;margin-top:20px">
+              <h3 style="margin-bottom:8px">Neighborhood Snapshot</h3>
+              <p id="neighborhoodName" style="font-size:0.88rem;color:var(--gray-text);margin-bottom:12px"></p>
+              <div id="neighborhoodGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>
+            </div>
+
             <div class="score-breakdown">
               <h3>Score Breakdown <span class="breakdown-hint">suspicion score — higher = riskier</span></h3>
               <div class="score-bar-row">
@@ -1096,7 +1115,9 @@
     }
 
     function renderResult(data, source) {
-      const { trust_score, verdict, red_flags, llm_score, price_score, accessibility_signals } = data;
+      const { trust_score, verdict, red_flags, llm_score, price_score,
+              accessibility_signals, market_price_score, neighborhood_note,
+              neighborhood_info, meta } = data;
 
       const badge = document.getElementById("scoreBadge");
       badge.textContent = trust_score;
@@ -1116,7 +1137,7 @@
         });
       }
 
-      // Accessibility & location signals (green section, only shown when present)
+      // Accessibility & location signals
       const accessSection = document.getElementById("accessibilitySection");
       const accessList = document.getElementById("accessibilityList");
       if (accessibility_signals && accessibility_signals.length > 0) {
@@ -1130,6 +1151,94 @@
         accessSection.style.display = "block";
       } else {
         accessSection.style.display = "none";
+      }
+
+      // Meta transparency — what the engine actually saw
+      const metaContent = document.getElementById("metaContent");
+      metaContent.innerHTML = "";
+      function metaChip(label, ok, detail) {
+        const chip = document.createElement("span");
+        chip.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:0.82rem;font-weight:500;background:${ok ? "#f0fdf4" : "#fef9c3"};color:${ok ? "#15803d" : "#92400e"};border:1px solid ${ok ? "#bbf7d0" : "#fde68a"}`;
+        chip.textContent = (ok ? "✓ " : "⚠ ") + label + (detail ? ": " + detail : "");
+        return chip;
+      }
+      if (meta) {
+        metaContent.appendChild(metaChip("Description", meta.description_found, null));
+        metaContent.appendChild(metaChip("Price", meta.price_found, null));
+        metaContent.appendChild(metaChip(
+          "Neighborhood",
+          !!meta.neighborhood_detected,
+          meta.neighborhood_detected || "not detected"
+        ));
+        if (meta.scrape_attempted) {
+          metaContent.appendChild(metaChip("Scraped from URL", true, null));
+        }
+        if (meta.price_data_source) {
+          const src = document.createElement("span");
+          src.style.cssText = "display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:0.82rem;background:#f1f5f9;color:var(--gray-text);border:1px solid var(--border)";
+          src.textContent = "📊 Price source: " + meta.price_data_source;
+          metaContent.appendChild(src);
+        }
+        if (!meta.description_found) {
+          const warn = document.createElement("div");
+          warn.style.cssText = "width:100%;margin-top:6px;font-size:0.82rem;color:#92400e";
+          warn.textContent = "No description found — text analysis may be unreliable. Try pasting the listing text directly.";
+          metaContent.appendChild(warn);
+        }
+      }
+
+      // Market price context
+      const marketSection = document.getElementById("marketSection");
+      const marketContent = document.getElementById("marketContent");
+      if (neighborhood_note && market_price_score !== null && market_price_score !== undefined) {
+        function riskClass(score) {
+          if (score >= 60) return "risk-high";
+          if (score >= 30) return "risk-medium";
+          return "risk-low";
+        }
+        marketContent.innerHTML = `
+          <div style="margin-bottom:10px;font-size:0.9rem;color:var(--gray-text)">${escapeHtml(neighborhood_note)}</div>
+          <div class="score-bar-row">
+            <span class="score-bar-label">Market suspicion</span>
+            <div class="score-bar-track">
+              <div class="score-bar-fill ${riskClass(market_price_score)}" style="width:${market_price_score}%"></div>
+            </div>
+            <span class="score-bar-val">${market_price_score}</span>
+          </div>`;
+        marketSection.style.display = "block";
+      } else {
+        marketSection.style.display = "none";
+      }
+
+      // Neighborhood amenities
+      const neighborhoodSection = document.getElementById("neighborhoodSection");
+      const neighborhoodGrid = document.getElementById("neighborhoodGrid");
+      if (neighborhood_info && meta && meta.neighborhood_detected) {
+        document.getElementById("neighborhoodName").textContent =
+          "Live OSM data for " + meta.neighborhood_detected.charAt(0).toUpperCase() + meta.neighborhood_detected.slice(1);
+        function amenityTile(icon, label, value) {
+          const val = value !== null && value !== undefined ? value : "–";
+          return `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:1.4rem">${icon}</div>
+            <div style="font-size:1.3rem;font-weight:700;color:var(--navy);margin:4px 0">${val}</div>
+            <div style="font-size:0.78rem;color:var(--gray-text)">${label}</div>
+          </div>`;
+        }
+        const walkColor = {high:"#16a34a", medium:"#d97706", low:"#dc2626", unknown:"var(--gray-text)"};
+        const wIcon = {high:"🚶", medium:"🚶", low:"🚗", unknown:"❓"};
+        const w = neighborhood_info.walkability || "unknown";
+        neighborhoodGrid.innerHTML =
+          amenityTile("🛒", "Grocery stores", neighborhood_info.grocery_stores) +
+          amenityTile("🚌", "Transit stops", neighborhood_info.transit_stops) +
+          amenityTile("🍽️", "Restaurants", neighborhood_info.restaurants) +
+          `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:1.4rem">${wIcon[w]}</div>
+            <div style="font-size:1.1rem;font-weight:700;color:${walkColor[w]};margin:4px 0;text-transform:capitalize">${w}</div>
+            <div style="font-size:0.78rem;color:var(--gray-text)">Walkability</div>
+          </div>`;
+        neighborhoodSection.style.display = "block";
+      } else {
+        neighborhoodSection.style.display = "none";
       }
 
       function riskClass(score) {
@@ -1150,7 +1259,7 @@
 
       document.getElementById("resultCard").classList.add("show");
 
-      // Save to history (grab title before clearing inputs)
+      // Save to history
       const titleVal = document.getElementById("titleInput").value.trim();
       saveHistory({
         source: source || "Pasted text",
@@ -1159,6 +1268,8 @@
         trust_score,
         verdict,
         red_flags: red_flags || [],
+        neighborhood: meta && meta.neighborhood_detected ? meta.neighborhood_detected : null,
+        neighborhood_info: neighborhood_info || null,
       });
 
       // Clear inputs for next analysis
