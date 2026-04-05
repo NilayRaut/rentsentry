@@ -222,7 +222,7 @@
       scroll-margin-top: 60px;
     }
 
-    .page + .page {
+    .page+.page {
       border-top: 1px solid var(--border);
     }
 
@@ -521,6 +521,7 @@
       padding-bottom: 20px;
       border-bottom: 1px solid var(--border);
     }
+
     .listing-preview-meta {
       display: flex;
       align-items: baseline;
@@ -528,6 +529,7 @@
       margin-bottom: 10px;
       flex-wrap: wrap;
     }
+
     .listing-preview-title {
       font-size: 1.05rem;
       font-weight: 700;
@@ -536,12 +538,14 @@
       flex: 1;
       min-width: 0;
     }
+
     .listing-preview-price {
       font-size: 1rem;
       font-weight: 700;
       color: #16a34a;
       white-space: nowrap;
     }
+
     .listing-preview-description {
       font-size: 0.88rem;
       color: #374151;
@@ -549,6 +553,7 @@
       margin-bottom: 4px;
       white-space: pre-line;
     }
+
     .listing-show-more {
       background: none;
       border: none;
@@ -562,6 +567,7 @@
       margin-bottom: 12px;
       display: block;
     }
+
     .listing-images-row {
       display: flex;
       gap: 10px;
@@ -569,6 +575,7 @@
       padding-bottom: 4px;
       margin-top: 12px;
     }
+
     .listing-image-item {
       flex-shrink: 0;
       display: flex;
@@ -576,6 +583,7 @@
       align-items: center;
       gap: 5px;
     }
+
     .listing-image-item img {
       width: 120px;
       height: 80px;
@@ -584,10 +592,12 @@
       border: 1px solid var(--border);
       display: block;
     }
+
     .listing-image-links {
       display: flex;
       gap: 5px;
     }
+
     .listing-image-links a {
       font-size: 0.72rem;
       font-weight: 600;
@@ -599,7 +609,10 @@
       padding: 2px 7px;
       white-space: nowrap;
     }
-    .listing-image-links a:hover { background: #e2e8f0; }
+
+    .listing-image-links a:hover {
+      background: #e2e8f0;
+    }
 
     .try-example-btn {
       background: none;
@@ -689,7 +702,10 @@
       font-size: 0.9rem;
     }
 
-    .history-flags { margin-top: 6px; }
+    .history-flags {
+      margin-top: 6px;
+    }
+
     .history-flags summary {
       font-size: 0.85rem;
       color: var(--red);
@@ -698,9 +714,20 @@
       user-select: none;
       list-style: none;
     }
-    .history-flags summary::-webkit-details-marker { display: none; }
-    .history-flags summary::before { content: "▶ "; font-size: 0.7rem; }
-    .history-flags[open] summary::before { content: "▼ "; }
+
+    .history-flags summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .history-flags summary::before {
+      content: "▶ ";
+      font-size: 0.7rem;
+    }
+
+    .history-flags[open] summary::before {
+      content: "▼ ";
+    }
+
     .history-flags ul {
       margin-top: 8px;
       display: flex;
@@ -708,6 +735,7 @@
       gap: 6px;
       list-style: none;
     }
+
     .history-flags ul li {
       background: #fef2f2;
       border: 1px solid #fecaca;
@@ -716,7 +744,13 @@
       padding: 8px 12px;
       font-size: 0.85rem;
     }
-    .history-no-flags { font-size: 0.85rem; color: var(--green); margin-top: 4px; font-weight: 500; }
+
+    .history-no-flags {
+      font-size: 0.85rem;
+      color: var(--green);
+      margin-top: 4px;
+      font-weight: 500;
+    }
 
     .history-empty {
       text-align: center;
@@ -888,7 +922,7 @@
           <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
         </label>
 
-<div class="error-banner" id="errorBanner"></div>
+        <div class="error-banner" id="errorBanner"></div>
 
         <div class="form-group">
           <label for="urlInput">Paste listing URL</label>
@@ -938,7 +972,7 @@
               </div>
               <div id="listingDescription" class="listing-preview-description"></div>
               <button id="listingShowMore" class="listing-show-more" style="display:none"
-                      onclick="toggleDescription()">Show more</button>
+                onclick="toggleDescription()">Show more</button>
               <div id="listingImages" class="listing-images-row" style="display:none"></div>
             </div>
 
@@ -952,7 +986,8 @@
             </div>
 
             <!-- Data transparency — what the engine actually saw -->
-            <div id="metaSection" style="margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;font-size:0.88rem;color:var(--gray-text)">
+            <div id="metaSection"
+              style="margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;font-size:0.88rem;color:var(--gray-text)">
               <div style="font-weight:600;color:var(--navy);margin-bottom:8px">What we analyzed</div>
               <div id="metaContent" style="display:flex;flex-wrap:wrap;gap:8px"></div>
             </div>
@@ -1216,15 +1251,15 @@
 
     function renderResult(data, source) {
       const { trust_score, verdict, red_flags, llm_score, price_score,
-              accessibility_signals, market_price_score, neighborhood_note,
-              neighborhood_info, meta,
-              listing_title, listing_description, listing_price_usd,
-              listing_image_urls } = data;
+        accessibility_signals, market_price_score, neighborhood_note,
+        neighborhood_info, meta,
+        listing_title, listing_description, listing_price_usd,
+        listing_image_urls } = data;
 
       // ── Listing Preview ─────────────────────────────────────────────
       const previewEl = document.getElementById("listingPreview");
       const hasListingData = listing_title || listing_description ||
-                              (listing_image_urls && listing_image_urls.length > 0);
+        (listing_image_urls && listing_image_urls.length > 0);
       if (hasListingData) {
         const titleEl = document.getElementById("listingTitle");
         titleEl.textContent = listing_title || "";
@@ -1232,7 +1267,7 @@
 
         const priceEl = document.getElementById("listingPrice");
         if (listing_price_usd != null) {
-          priceEl.textContent = "$" + listing_price_usd.toLocaleString("en-US", {maximumFractionDigits: 0}) + "/mo";
+          priceEl.textContent = "$" + listing_price_usd.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "/mo";
           priceEl.style.display = "";
         } else {
           priceEl.style.display = "none";
@@ -1268,8 +1303,8 @@
             item.innerHTML =
               `<img src="${escapeHtml(imgUrl)}" alt="Listing photo" loading="lazy" onerror="this.closest('.listing-image-item').style.display='none'">` +
               `<div class="listing-image-links">` +
-                `<a href="https://lens.google.com/uploadbyurl?url=${encoded}" target="_blank" rel="noopener">Lens</a>` +
-                `<a href="https://www.tineye.com/search?url=${encoded}" target="_blank" rel="noopener">TinEye</a>` +
+              `<a href="https://lens.google.com/uploadbyurl?url=${encoded}" target="_blank" rel="noopener">Lens</a>` +
+              `<a href="https://www.tineye.com/search?url=${encoded}" target="_blank" rel="noopener">TinEye</a>` +
               `</div>`;
             imagesEl.appendChild(item);
           });
