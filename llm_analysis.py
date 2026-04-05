@@ -39,8 +39,11 @@ The JSON must have exactly these fields:
   "suspicion_score": <integer 0-100>,
   "red_flags": [<short plain-English string>, ...],
   "reasoning": "<one sentence summary>",
-  "accessibility_signals": [<short plain-English string>, ...]
+  "accessibility_signals": [<short plain-English string>, ...],
+  "formatted_description": "<rewritten description or null>"
 }
+
+formatted_description: Rewrite the listing description in clean, professional prose. Preserve every factual detail (location, bedrooms, bathrooms, price, amenities, contact info, lease terms). Remove Craigslist clutter: ALL CAPS sections, separator lines (====, ----, ****), excessive line breaks, emoji spam, and repetitive filler. Write in clear paragraphs. If no description is provided, return null.
 
 Scoring guide:
 - 0-20: Looks legitimate. Normal language, reasonable price, no pressure tactics, offers in-person viewing.
@@ -98,8 +101,11 @@ The JSON must have exactly these fields:
   "suspicion_score": <integer 0-100>,
   "red_flags": [<short plain-English string>, ...],
   "reasoning": "<one sentence summary>",
-  "accessibility_signals": [<short plain-English string>, ...]
+  "accessibility_signals": [<short plain-English string>, ...],
+  "formatted_description": "<rewritten description or null>"
 }
+
+formatted_description: Rewrite the listing description in clean, professional prose. Preserve every factual detail (location, bedrooms, bathrooms, price, amenities, contact info, lease terms). Remove clutter: ALL CAPS sections, separator lines (====, ----, ****), excessive line breaks, emoji spam, and repetitive filler. Write in clear paragraphs. If no description is provided, return null.
 
 Scoring guide:
 - 0-20: Looks legitimate. Normal language, reasonable price, no pressure tactics, allows inspection.
@@ -146,7 +152,7 @@ async def _call_openai(user_message: str, system_prompt: str) -> str:
         raise RuntimeError("OPENAI_API_KEY not set")
     response = await openai_client.chat.completions.create(
         model=OPENAI_MODEL,
-        max_tokens=512,
+        max_tokens=1500,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
@@ -160,7 +166,7 @@ async def _call_anthropic(user_message: str, system_prompt: str) -> str:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
     response = await anthropic_client.messages.create(
         model=ANTHROPIC_MODEL,
-        max_tokens=512,
+        max_tokens=1500,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
@@ -171,11 +177,13 @@ def _parse_raw(raw: str) -> dict:
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
     parsed = json.loads(raw.strip())
+    formatted = parsed.get("formatted_description")
     return {
         "suspicion_score": max(0, min(100, int(parsed.get("suspicion_score", 50)))),
         "red_flags": [str(f) for f in parsed.get("red_flags", []) if f][:10],
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "accessibility_signals": [str(s) for s in parsed.get("accessibility_signals", []) if s][:10],
+        "formatted_description": str(formatted).strip() if formatted else None,
     }
 
 
@@ -201,7 +209,7 @@ async def analyze_listing(
         }
     Returns safe default on any error — never raises.
     """
-    DEFAULT = {"suspicion_score": 50, "red_flags": [], "reasoning": "Analysis unavailable.", "accessibility_signals": []}
+    DEFAULT = {"suspicion_score": 50, "red_flags": [], "reasoning": "Analysis unavailable.", "accessibility_signals": [], "formatted_description": None}
 
     if not description and not title:
         return DEFAULT

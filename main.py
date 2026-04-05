@@ -40,6 +40,10 @@ class AnalyzeResponse(BaseModel):
     neighborhood_note: Optional[str] = None
     neighborhood_info: Optional[dict] = None
     meta: Optional[dict] = None
+    listing_title: Optional[str] = None
+    listing_description: Optional[str] = None
+    listing_price_usd: Optional[float] = None
+    listing_image_urls: List[str] = []
 
 # --- HEALTH CHECK (STEP 6) ---
 @app.get("/")
@@ -81,6 +85,7 @@ async def analyze(req: AnalyzeRequest):
     title = req.title
     description = req.description
     price_usd = req.price_usd
+    image_urls: list = []
 
     # 2. Parallel Execution: Run Scraper and LLM at the same time
     # We call scrape() only if a URL exists
@@ -91,6 +96,7 @@ async def analyze(req: AnalyzeRequest):
         title = scraped_data.get("title") or title
         description = scraped_data.get("description") or description
         price_usd = scraped_data.get("price_usd") or price_usd
+        image_urls = scraped_data.get("image_urls", [])
 
         # If scraper got nothing (Zillow/blocked site), fall back to pasted text.
         # If there's no pasted text either, return a clear error instead of a
@@ -154,6 +160,10 @@ async def analyze(req: AnalyzeRequest):
         neighborhood_note=market_result.get("note"),
         neighborhood_info=amenities,
         meta=meta,
+        listing_title=title,
+        listing_description=llm_result.get("formatted_description") or description,
+        listing_price_usd=price_usd,
+        listing_image_urls=image_urls,
     )
 
 if __name__ == "__main__":

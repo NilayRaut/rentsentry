@@ -515,6 +515,92 @@
       color: var(--gray-text);
     }
 
+    /* ── LISTING PREVIEW ── */
+    .listing-preview {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .listing-preview-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .listing-preview-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.3;
+      flex: 1;
+      min-width: 0;
+    }
+    .listing-preview-price {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #16a34a;
+      white-space: nowrap;
+    }
+    .listing-preview-description {
+      font-size: 0.88rem;
+      color: #374151;
+      line-height: 1.65;
+      margin-bottom: 4px;
+      white-space: pre-line;
+    }
+    .listing-show-more {
+      background: none;
+      border: none;
+      color: var(--navy);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      font-family: inherit;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .listing-images-row {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-top: 12px;
+    }
+    .listing-image-item {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+    .listing-image-item img {
+      width: 120px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .listing-image-links {
+      display: flex;
+      gap: 5px;
+    }
+    .listing-image-links a {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--navy);
+      text-decoration: none;
+      background: var(--gray-light);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 7px;
+      white-space: nowrap;
+    }
+    .listing-image-links a:hover { background: #e2e8f0; }
+
     .try-example-btn {
       background: none;
       border: 1px dashed var(--border);
@@ -844,6 +930,18 @@
             </div>
           </div>
           <div class="result-body">
+            <!-- ── LISTING PREVIEW — hidden until data available ── -->
+            <div id="listingPreview" class="listing-preview" style="display:none">
+              <div class="listing-preview-meta">
+                <div id="listingTitle" class="listing-preview-title"></div>
+                <div id="listingPrice" class="listing-preview-price"></div>
+              </div>
+              <div id="listingDescription" class="listing-preview-description"></div>
+              <button id="listingShowMore" class="listing-show-more" style="display:none"
+                      onclick="toggleDescription()">Show more</button>
+              <div id="listingImages" class="listing-images-row" style="display:none"></div>
+            </div>
+
             <h3>Red Flags Detected</h3>
             <ul class="red-flags-list" id="redFlagsList"></ul>
 
@@ -1008,6 +1106,8 @@
     // 👇 Swap this one line when Member A posts the Render URL
     const API = "http://localhost:8000";
     const HISTORY_KEY = "rentsentry_history";
+    let _fullDescription = "";
+    let _descExpanded = false;
 
     // ── Scroll-spy: highlight active nav link ────────────────
     const _navLinks = document.querySelectorAll(".nav-links a");
@@ -1117,7 +1217,70 @@
     function renderResult(data, source) {
       const { trust_score, verdict, red_flags, llm_score, price_score,
               accessibility_signals, market_price_score, neighborhood_note,
-              neighborhood_info, meta } = data;
+              neighborhood_info, meta,
+              listing_title, listing_description, listing_price_usd,
+              listing_image_urls } = data;
+
+      // ── Listing Preview ─────────────────────────────────────────────
+      const previewEl = document.getElementById("listingPreview");
+      const hasListingData = listing_title || listing_description ||
+                              (listing_image_urls && listing_image_urls.length > 0);
+      if (hasListingData) {
+        const titleEl = document.getElementById("listingTitle");
+        titleEl.textContent = listing_title || "";
+        titleEl.style.display = listing_title ? "" : "none";
+
+        const priceEl = document.getElementById("listingPrice");
+        if (listing_price_usd != null) {
+          priceEl.textContent = "$" + listing_price_usd.toLocaleString("en-US", {maximumFractionDigits: 0}) + "/mo";
+          priceEl.style.display = "";
+        } else {
+          priceEl.style.display = "none";
+        }
+
+        const descEl = document.getElementById("listingDescription");
+        const showMoreBtn = document.getElementById("listingShowMore");
+        const TRUNCATE = 500;
+        _descExpanded = false;
+        if (listing_description) {
+          _fullDescription = listing_description;
+          if (listing_description.length > TRUNCATE) {
+            descEl.textContent = listing_description.slice(0, TRUNCATE) + "…";
+            showMoreBtn.textContent = "Show more";
+            showMoreBtn.style.display = "block";
+          } else {
+            descEl.textContent = listing_description;
+            showMoreBtn.style.display = "none";
+          }
+          descEl.style.display = "";
+        } else {
+          descEl.style.display = "none";
+          showMoreBtn.style.display = "none";
+        }
+
+        const imagesEl = document.getElementById("listingImages");
+        imagesEl.innerHTML = "";
+        if (listing_image_urls && listing_image_urls.length > 0) {
+          listing_image_urls.forEach(imgUrl => {
+            const encoded = encodeURIComponent(imgUrl);
+            const item = document.createElement("div");
+            item.className = "listing-image-item";
+            item.innerHTML =
+              `<img src="${escapeHtml(imgUrl)}" alt="Listing photo" loading="lazy" onerror="this.closest('.listing-image-item').style.display='none'">` +
+              `<div class="listing-image-links">` +
+                `<a href="https://lens.google.com/uploadbyurl?url=${encoded}" target="_blank" rel="noopener">Lens</a>` +
+                `<a href="https://www.tineye.com/search?url=${encoded}" target="_blank" rel="noopener">TinEye</a>` +
+              `</div>`;
+            imagesEl.appendChild(item);
+          });
+          imagesEl.style.display = "flex";
+        } else {
+          imagesEl.style.display = "none";
+        }
+        previewEl.style.display = "block";
+      } else {
+        previewEl.style.display = "none";
+      }
 
       const badge = document.getElementById("scoreBadge");
       badge.textContent = trust_score;
@@ -1275,6 +1438,7 @@
         red_flags: red_flags || [],
         neighborhood: meta && meta.neighborhood_detected ? meta.neighborhood_detected : null,
         neighborhood_info: neighborhood_info || null,
+        description: listing_description || null,
       });
 
       // Clear inputs for next analysis
@@ -1323,7 +1487,17 @@
       }
 
       list.innerHTML = items.map(item => {
-        const displayTitle = escapeHtml((item.title || item.source || "Unknown listing").slice(0, 80));
+        const displayTitle = (item.title || item.source || "Unknown listing").slice(0, 80);
+        const isUrl = item.source && item.source.startsWith("http");
+        const sourceHtml = isUrl
+          ? `<a href="${escapeHtml(item.source)}" target="_blank" rel="noopener" style="color:var(--navy);text-decoration:underline;text-underline-offset:2px">${escapeHtml(displayTitle)}</a>`
+          : escapeHtml(displayTitle);
+        const descHtml = item.description
+          ? `<details class="history-flags" style="margin-bottom:8px">
+               <summary style="color:var(--gray-text);font-size:0.82rem">Listing description</summary>
+               <p style="margin:8px 0 0;font-size:0.85rem;color:#374151;line-height:1.6;white-space:pre-line">${escapeHtml(item.description)}</p>
+             </details>`
+          : "";
         const flags = item.red_flags || [];
         const flagsHtml = flags.length > 0
           ? `<details class="history-flags">
@@ -1336,7 +1510,7 @@
           <div class="history-item">
             <div class="history-top">
               <div class="history-meta">
-                <div class="history-source">${displayTitle}</div>
+                <div class="history-source">${sourceHtml}</div>
                 <div class="history-date">${item.date}</div>
               </div>
               <div class="history-score-wrap">
@@ -1344,6 +1518,7 @@
                 <span class="history-verdict">${verdictText(item.verdict)}</span>
               </div>
             </div>
+            ${descHtml}
             ${flagsHtml}
           </div>`;
       }).join("");
@@ -1366,6 +1541,17 @@
 
     function hideResult() {
       document.getElementById("resultCard").classList.remove("show");
+      document.getElementById("listingPreview").style.display = "none";
+      _fullDescription = "";
+      _descExpanded = false;
+    }
+
+    function toggleDescription() {
+      const el = document.getElementById("listingDescription");
+      const btn = document.getElementById("listingShowMore");
+      _descExpanded = !_descExpanded;
+      el.textContent = _descExpanded ? _fullDescription : _fullDescription.slice(0, 500) + "…";
+      btn.textContent = _descExpanded ? "Show less" : "Show more";
     }
 
     function setAnalyzeDisabled(on) {
