@@ -133,6 +133,8 @@
     }
 
     .btn-primary {
+      display: inline-flex;
+      align-items: center;
       background: var(--navy);
       color: #fff;
       border: none;
@@ -141,6 +143,7 @@
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
       transition: background 0.15s;
     }
 
@@ -149,6 +152,8 @@
     }
 
     .btn-secondary {
+      display: inline-flex;
+      align-items: center;
       background: #fff;
       color: var(--navy);
       border: 2px solid var(--border);
@@ -157,6 +162,7 @@
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
       transition: border-color 0.15s;
     }
 
@@ -211,21 +217,13 @@
       font-size: 1rem;
     }
 
-    /* ── PAGES ── */
-    #page-home,
-    #page-analyze,
-    #page-history,
-    #page-tips,
-    #page-about {
-      scroll-margin-top: 70px;
-    }
-
+    /* ── SECTIONS ── */
     .page {
-      display: none;
+      scroll-margin-top: 60px;
     }
 
-    .page.active {
-      display: block;
+    .page + .page {
+      border-top: 1px solid var(--border);
     }
 
     /* ── ANALYZE ── */
@@ -527,11 +525,12 @@
       cursor: pointer;
       margin-bottom: 8px;
       display: block;
+      font-family: inherit;
     }
 
     .try-example-btn:hover {
-      background: var(--bg);
-      color: var(--text);
+      background: var(--gray-light);
+      color: var(--navy);
     }
 
     /* ── HISTORY ── */
@@ -557,8 +556,6 @@
       gap: 16px;
     }
 
-    .history-source { font-weight: 600; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-    .history-date { color: var(--gray-text); font-size: 0.85rem; }
     .history-meta {
       min-width: 0;
     }
@@ -740,7 +737,7 @@
 
   <!-- ═══════════════ NAV ═══════════════ -->
   <nav>
-    <a class="nav-logo" onclick="navigate('home')">
+    <a class="nav-logo" href="#page-home">
       <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M14 2L3 8v6c0 5.5 4.7 10.6 11 12 6.3-1.4 11-6.5 11-12V8L14 2z" fill="#0f172a" />
         <path d="M14 2L3 8v6c0 5.5 4.7 10.6 11 12 6.3-1.4 11-6.5 11-12V8L14 2z" fill="none" stroke="#dc2626"
@@ -750,11 +747,11 @@
       RentSentry
     </a>
     <div class="nav-links">
-      <a href="#page-home" data-page="home">Home</a>
-      <a href="#page-analyze" data-page="analyze">Analyze</a>
-      <a href="#page-history" data-page="history">History</a>
-      <a href="#page-tips" data-page="tips">Tips</a>
-      <a href="#page-about" data-page="about">About</a>
+      <a href="#page-home">Home</a>
+      <a href="#page-analyze">Analyze</a>
+      <a href="#page-history">History</a>
+      <a href="#page-tips">Tips</a>
+      <a href="#page-about">About</a>
     </div>
   </nav>
 
@@ -767,28 +764,10 @@
         <p>RentSentry analyzes rental listings for red flags and gives you a trust score so you can rent with
           confidence.</p>
         <div class="hero-btns">
-          <button class="btn-primary" onclick="navigate('analyze')">Analyze a listing</button>
-          <button class="btn-secondary" onclick="navigate('tips')">Learn scam tips</button>
+          <a class="btn-primary" href="#page-analyze">Analyze a listing</a>
+          <a class="btn-secondary" href="#page-tips">Learn scam tips</a>
         </div>
       </div>
-    </div>
-  </main>
-</div>
-
-<!-- ═══════════════ ANALYZE ═══════════════ -->
-<div id="page-analyze" class="page">
-  <main>
-    <div class="page-header">
-      <h1>Analyze a Listing</h1>
-      <p>Paste a URL or listing text to check for scam signals</p>
-    </div>
-
-    <div class="analyze-form">
-      <label class="demo-toggle">
-        <input type="checkbox" id="demoMode" onchange="toggleDemo()" />
-        <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
-      </label>
-
       <div class="feature-cards">
         <div class="card">
           <div class="card-icon">🔍</div>
@@ -823,20 +802,7 @@
           <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
         </label>
 
-        <!-- Rent / Buy mode toggle -->
-        <div class="form-group" style="margin-bottom:16px">
-          <label style="display:block;margin-bottom:8px;font-weight:600">Listing type</label>
-          <div style="display:flex;gap:20px">
-            <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
-              <input type="radio" name="mode" value="rent" checked /> Rent
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer">
-              <input type="radio" name="mode" value="buy" /> Buy
-            </label>
-          </div>
-        </div>
-
-        <div class="error-banner" id="errorBanner"></div>
+<div class="error-banner" id="errorBanner"></div>
 
         <div class="form-group">
           <label for="urlInput">Paste listing URL</label>
@@ -1024,18 +990,19 @@
     const API = "http://localhost:8000";
     const HISTORY_KEY = "rentsentry_history";
 
-    // ── Routing ─────────────────────────────────────────────
-    function navigate(page) {
-      document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
-      document.querySelectorAll(".nav-links a").forEach(el => el.classList.remove("active"));
-
-      document.getElementById("page-" + page).classList.add("active");
-      const link = document.querySelector(`.nav-links a[data-page="${page}"]`);
-      if (link) link.classList.add("active");
-
-      if (page === "history") renderHistory();
-      document.getElementById("page-" + page).scrollIntoView({ behavior: "smooth" });
-    }
+    // ── Scroll-spy: highlight active nav link ────────────────
+    const _navLinks = document.querySelectorAll(".nav-links a");
+    const _sections = document.querySelectorAll(".page");
+    const _spy = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          _navLinks.forEach(a => a.classList.remove("active"));
+          const active = document.querySelector(`.nav-links a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add("active");
+        }
+      });
+    }, { rootMargin: "-50% 0px -45% 0px", threshold: 0 });
+    _sections.forEach(s => _spy.observe(s));
 
     // ── Try an example ──────────────────────────────────────
     function fillExample() {
@@ -1099,7 +1066,6 @@
             title: document.getElementById("titleInput").value.trim() || null,
             price_usd: isNaN(priceRaw) ? null : priceRaw,
             image_urls: [],
-            mode: document.querySelector('input[name="mode"]:checked').value,
           };
           const res = await fetch(`${API}/analyze`, {
             method: "POST",
@@ -1143,18 +1109,6 @@
       if (!red_flags || red_flags.length === 0) {
         list.innerHTML = '<li style="background:#f0fdf4;border-color:#bbf7d0;color:#14532d">No red flags detected</li>';
       } else {
-        const priceRaw = parseFloat(document.getElementById("priceInput").value);
-        const payload = {
-          url: url || null,
-          description: text || null,
-          title: document.getElementById("titleInput").value.trim() || null,
-          price_usd: isNaN(priceRaw) ? null : priceRaw,
-          image_urls: [],
-        };
-        const res = await fetch(`${API}/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
         red_flags.forEach(flag => {
           const li = document.createElement("li");
           li.textContent = flag;
@@ -1183,6 +1137,7 @@
         if (score >= 30) return "risk-medium";
         return "risk-low";
       }
+
       const llmBarEl = document.getElementById("llmBar");
       llmBarEl.style.width = (llm_score || 0) + "%";
       llmBarEl.className = "score-bar-fill " + riskClass(llm_score || 0);
@@ -1195,166 +1150,24 @@
 
       document.getElementById("resultCard").classList.add("show");
 
-      // Save to history
+      // Save to history (grab title before clearing inputs)
+      const titleVal = document.getElementById("titleInput").value.trim();
       saveHistory({
         source: source || "Pasted text",
+        title: titleVal || null,
         date: new Date().toISOString().slice(0, 10),
         trust_score,
         verdict,
+        red_flags: red_flags || [],
       });
 
-      // Clear inputs
+      // Clear inputs for next analysis
       document.getElementById("urlInput").value = "";
       document.getElementById("titleInput").value = "";
       document.getElementById("priceInput").value = "";
       document.getElementById("textInput").value = "";
     }
 
-    // Accessibility & location signals (green section, only shown when present)
-    const accessSection = document.getElementById("accessibilitySection");
-    const accessList = document.getElementById("accessibilityList");
-    if (accessibility_signals && accessibility_signals.length > 0) {
-      accessList.innerHTML = "";
-      accessibility_signals.forEach(signal => {
-        const li = document.createElement("li");
-        li.style.cssText = "background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;border-radius:8px;padding:8px 12px;list-style:none;font-size:0.9rem";
-        li.textContent = "📍 " + signal;
-        accessList.appendChild(li);
-      });
-      accessSection.style.display = "block";
-    } else {
-      accessSection.style.display = "none";
-    }
-
-    function riskClass(score) {
-      if (score >= 60) return "risk-high";
-      if (score >= 30) return "risk-medium";
-      return "risk-low";
-    }
-    const llmBarEl = document.getElementById("llmBar");
-    llmBarEl.style.width = (llm_score || 0) + "%";
-    llmBarEl.className = "score-bar-fill " + riskClass(llm_score || 0);
-    document.getElementById("llmVal").textContent = llm_score ?? "–";
-
-    const priceBarEl = document.getElementById("priceBar");
-    priceBarEl.style.width = (price_score || 0) + "%";
-    priceBarEl.className = "score-bar-fill " + riskClass(price_score || 0);
-    document.getElementById("priceVal").textContent = price_score ?? "–";
-
-    document.getElementById("resultCard").classList.add("show");
-
-    // Save to history (grab title before clearing inputs)
-    const titleVal = document.getElementById("titleInput").value.trim();
-    saveHistory({
-      source: source || "Pasted text",
-      title: titleVal || null,
-      date: new Date().toISOString().slice(0, 10),
-      trust_score,
-      verdict,
-      red_flags: red_flags || [],
-    });
-
-    // Clear inputs for next analysis
-    document.getElementById("urlInput").value = "";
-    document.getElementById("titleInput").value = "";
-    document.getElementById("priceInput").value = "";
-    document.getElementById("textInput").value = "";
-  }
-
-  // ── History ──────────────────────────────────────────────
-  function loadHistory() {
-    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
-    catch { return []; }
-  }
-
-  function saveHistory(item) {
-    const hist = loadHistory();
-    hist.unshift(item);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, 50)));
-  }
-
-  function clearHistory() {
-    if (confirm("Clear all analysis history?")) {
-      localStorage.removeItem(HISTORY_KEY);
-      renderHistory();
-    }
-  }
-
-  function renderHistory() {
-    const list = document.getElementById("historyList");
-    let items = loadHistory();
-
-    // Seed demo data if empty
-    if (items.length === 0) {
-      items = [
-        { source: "craigslist.org/boston", date: "2026-04-03", trust_score: 85, verdict: "safe", red_flags: [] },
-        { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious", red_flags: ["Requests wire transfer", "No in-person viewing offered"] },
-        { source: "Pasted text", title: "2BR Boston — $650/mo", date: "2026-04-01", trust_score: 12, verdict: "likely_scam", red_flags: ["Overseas landlord claimed", "Wire transfer only", "Urgency pressure tactics", "Deposit before viewing"] },
-        { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe", red_flags: [] },
-      ];
-    }
-
-    if (items.length === 0) {
-      list.innerHTML = '<div class="history-empty">No analyses yet. <a onclick="navigate(\'analyze\')" style="color:var(--navy);cursor:pointer;font-weight:600">Analyze a listing</a> to get started.</div>';
-      return;
-    }
-
-    list.innerHTML = items.map(item => {
-      const displayTitle = escapeHtml((item.title || item.source || "Unknown listing").slice(0, 80));
-      const flags = item.red_flags || [];
-      const flagsHtml = flags.length > 0
-        ? `<details class="history-flags">
-             <summary>${flags.length} red flag${flags.length !== 1 ? "s" : ""} detected</summary>
-             <ul>${flags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>
-           </details>`
-        : `<p class="history-no-flags">No red flags detected</p>`;
-
-      return `
-        <div class="history-item">
-          <div class="history-top">
-            <div class="history-source">${displayTitle}</div>
-            <div class="history-score-wrap">
-              <span class="history-score ${item.verdict}">${item.trust_score}</span>
-              <span class="history-verdict">${verdictText(item.verdict)}</span>
-            </div>
-          </div>
-          <div class="history-date">${item.date}</div>
-          ${flagsHtml}
-        </div>`;
-    }).join("");
-  }
-
-  // ── UI helpers ───────────────────────────────────────────
-  function showError(msg) {
-    const el = document.getElementById("errorBanner");
-    el.textContent = msg;
-    el.classList.add("show");
-  }
-
-  function hideError() {
-    document.getElementById("errorBanner").classList.remove("show");
-  }
-
-  function showLoading(on) {
-    document.getElementById("loadingEl").classList.toggle("show", on);
-  }
-
-  function hideResult() {
-    document.getElementById("resultCard").classList.remove("show");
-  }
-
-  function setAnalyzeDisabled(on) {
-    document.getElementById("analyzeBtn").disabled = on;
-    document.getElementById("analyzeBtn").textContent = on ? "Analyzing…" : "Analyze listing";
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-
-  // ── Boot ─────────────────────────────────────────────────
-  navigate("home");
-</script>
     // ── History ──────────────────────────────────────────────
     function loadHistory() {
       try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
@@ -1381,30 +1194,43 @@
       // Seed demo data if empty
       if (items.length === 0) {
         items = [
-          { source: "craigslist.org", date: "2026-04-03", trust_score: 85, verdict: "safe" },
-          { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious" },
-          { source: "Pasted text", date: "2026-04-01", trust_score: 12, verdict: "likely_scam" },
-          { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe" },
+          { source: "craigslist.org/boston", date: "2026-04-03", trust_score: 85, verdict: "safe", red_flags: [] },
+          { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious", red_flags: ["Requests wire transfer", "No in-person viewing offered"] },
+          { source: "Pasted text", title: "2BR Boston — $650/mo", date: "2026-04-01", trust_score: 12, verdict: "likely_scam", red_flags: ["Overseas landlord claimed", "Wire transfer only", "Urgency pressure tactics", "Deposit before viewing"] },
+          { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe", red_flags: [] },
         ];
       }
 
       if (items.length === 0) {
-        list.innerHTML = '<div class="history-empty">No analyses yet. <a onclick="navigate(\'analyze\')" style="color:var(--navy);cursor:pointer;font-weight:600">Analyze a listing</a> to get started.</div>';
+        list.innerHTML = '<div class="history-empty">No analyses yet. <a href="#page-analyze" style="color:var(--navy);font-weight:600">Analyze a listing</a> to get started.</div>';
         return;
       }
 
-      list.innerHTML = items.map(item => `
-      <div class="history-item">
-        <div class="history-meta">
-          <div class="history-source">${escapeHtml(item.source)}</div>
-          <div class="history-date">${item.date}</div>
-        </div>
-        <div class="history-score-wrap">
-          <span class="history-score ${item.verdict}">${item.trust_score}</span>
-          <span class="history-verdict">${verdictText(item.verdict)}</span>
-        </div>
-      </div>
-    `).join("");
+      list.innerHTML = items.map(item => {
+        const displayTitle = escapeHtml((item.title || item.source || "Unknown listing").slice(0, 80));
+        const flags = item.red_flags || [];
+        const flagsHtml = flags.length > 0
+          ? `<details class="history-flags">
+               <summary>${flags.length} red flag${flags.length !== 1 ? "s" : ""} detected</summary>
+               <ul>${flags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>
+             </details>`
+          : `<p class="history-no-flags">No red flags detected</p>`;
+
+        return `
+          <div class="history-item">
+            <div class="history-top">
+              <div class="history-meta">
+                <div class="history-source">${displayTitle}</div>
+                <div class="history-date">${item.date}</div>
+              </div>
+              <div class="history-score-wrap">
+                <span class="history-score ${item.verdict}">${item.trust_score}</span>
+                <span class="history-verdict">${verdictText(item.verdict)}</span>
+              </div>
+            </div>
+            ${flagsHtml}
+          </div>`;
+      }).join("");
     }
 
     // ── UI helpers ───────────────────────────────────────────
@@ -1436,7 +1262,7 @@
     }
 
     // ── Boot ─────────────────────────────────────────────────
-    navigate("home");
+    renderHistory();
   </script>
 </body>
 
