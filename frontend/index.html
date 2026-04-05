@@ -546,11 +546,19 @@
       border-radius: var(--radius);
       padding: 18px 24px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-top {
+      display: flex;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
     }
 
+    .history-source { font-weight: 600; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .history-date { color: var(--gray-text); font-size: 0.85rem; }
     .history-meta {
       min-width: 0;
     }
@@ -597,6 +605,35 @@
       color: var(--gray-text);
       font-size: 0.9rem;
     }
+
+    .history-flags { margin-top: 6px; }
+    .history-flags summary {
+      font-size: 0.85rem;
+      color: var(--red);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    .history-flags summary::-webkit-details-marker { display: none; }
+    .history-flags summary::before { content: "▶ "; font-size: 0.7rem; }
+    .history-flags[open] summary::before { content: "▼ "; }
+    .history-flags ul {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      list-style: none;
+    }
+    .history-flags ul li {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #7f1d1d;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+    .history-no-flags { font-size: 0.85rem; color: var(--green); margin-top: 4px; font-weight: 500; }
 
     .history-empty {
       text-align: center;
@@ -734,6 +771,24 @@
           <button class="btn-secondary" onclick="navigate('tips')">Learn scam tips</button>
         </div>
       </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════ ANALYZE ═══════════════ -->
+<div id="page-analyze" class="page">
+  <main>
+    <div class="page-header">
+      <h1>Analyze a Listing</h1>
+      <p>Paste a URL or listing text to check for scam signals</p>
+    </div>
+
+    <div class="analyze-form">
+      <label class="demo-toggle">
+        <input type="checkbox" id="demoMode" onchange="toggleDemo()" />
+        <span><strong>Demo mode</strong> <span class="demo-label-hint">(no backend needed)</span></span>
+      </label>
+
       <div class="feature-cards">
         <div class="card">
           <div class="card-icon">🔍</div>
@@ -1088,6 +1143,18 @@
       if (!red_flags || red_flags.length === 0) {
         list.innerHTML = '<li style="background:#f0fdf4;border-color:#bbf7d0;color:#14532d">No red flags detected</li>';
       } else {
+        const priceRaw = parseFloat(document.getElementById("priceInput").value);
+        const payload = {
+          url: url || null,
+          description: text || null,
+          title: document.getElementById("titleInput").value.trim() || null,
+          price_usd: isNaN(priceRaw) ? null : priceRaw,
+          image_urls: [],
+        };
+        const res = await fetch(`${API}/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         red_flags.forEach(flag => {
           const li = document.createElement("li");
           li.textContent = flag;
@@ -1143,6 +1210,151 @@
       document.getElementById("textInput").value = "";
     }
 
+    // Accessibility & location signals (green section, only shown when present)
+    const accessSection = document.getElementById("accessibilitySection");
+    const accessList = document.getElementById("accessibilityList");
+    if (accessibility_signals && accessibility_signals.length > 0) {
+      accessList.innerHTML = "";
+      accessibility_signals.forEach(signal => {
+        const li = document.createElement("li");
+        li.style.cssText = "background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;border-radius:8px;padding:8px 12px;list-style:none;font-size:0.9rem";
+        li.textContent = "📍 " + signal;
+        accessList.appendChild(li);
+      });
+      accessSection.style.display = "block";
+    } else {
+      accessSection.style.display = "none";
+    }
+
+    function riskClass(score) {
+      if (score >= 60) return "risk-high";
+      if (score >= 30) return "risk-medium";
+      return "risk-low";
+    }
+    const llmBarEl = document.getElementById("llmBar");
+    llmBarEl.style.width = (llm_score || 0) + "%";
+    llmBarEl.className = "score-bar-fill " + riskClass(llm_score || 0);
+    document.getElementById("llmVal").textContent = llm_score ?? "–";
+
+    const priceBarEl = document.getElementById("priceBar");
+    priceBarEl.style.width = (price_score || 0) + "%";
+    priceBarEl.className = "score-bar-fill " + riskClass(price_score || 0);
+    document.getElementById("priceVal").textContent = price_score ?? "–";
+
+    document.getElementById("resultCard").classList.add("show");
+
+    // Save to history (grab title before clearing inputs)
+    const titleVal = document.getElementById("titleInput").value.trim();
+    saveHistory({
+      source: source || "Pasted text",
+      title: titleVal || null,
+      date: new Date().toISOString().slice(0, 10),
+      trust_score,
+      verdict,
+      red_flags: red_flags || [],
+    });
+
+    // Clear inputs for next analysis
+    document.getElementById("urlInput").value = "";
+    document.getElementById("titleInput").value = "";
+    document.getElementById("priceInput").value = "";
+    document.getElementById("textInput").value = "";
+  }
+
+  // ── History ──────────────────────────────────────────────
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+    catch { return []; }
+  }
+
+  function saveHistory(item) {
+    const hist = loadHistory();
+    hist.unshift(item);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, 50)));
+  }
+
+  function clearHistory() {
+    if (confirm("Clear all analysis history?")) {
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistory();
+    }
+  }
+
+  function renderHistory() {
+    const list = document.getElementById("historyList");
+    let items = loadHistory();
+
+    // Seed demo data if empty
+    if (items.length === 0) {
+      items = [
+        { source: "craigslist.org/boston", date: "2026-04-03", trust_score: 85, verdict: "safe", red_flags: [] },
+        { source: "facebook.com/marketplace", date: "2026-04-02", trust_score: 42, verdict: "suspicious", red_flags: ["Requests wire transfer", "No in-person viewing offered"] },
+        { source: "Pasted text", title: "2BR Boston — $650/mo", date: "2026-04-01", trust_score: 12, verdict: "likely_scam", red_flags: ["Overseas landlord claimed", "Wire transfer only", "Urgency pressure tactics", "Deposit before viewing"] },
+        { source: "zillow.com", date: "2026-03-30", trust_score: 91, verdict: "safe", red_flags: [] },
+      ];
+    }
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="history-empty">No analyses yet. <a onclick="navigate(\'analyze\')" style="color:var(--navy);cursor:pointer;font-weight:600">Analyze a listing</a> to get started.</div>';
+      return;
+    }
+
+    list.innerHTML = items.map(item => {
+      const displayTitle = escapeHtml((item.title || item.source || "Unknown listing").slice(0, 80));
+      const flags = item.red_flags || [];
+      const flagsHtml = flags.length > 0
+        ? `<details class="history-flags">
+             <summary>${flags.length} red flag${flags.length !== 1 ? "s" : ""} detected</summary>
+             <ul>${flags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}</ul>
+           </details>`
+        : `<p class="history-no-flags">No red flags detected</p>`;
+
+      return `
+        <div class="history-item">
+          <div class="history-top">
+            <div class="history-source">${displayTitle}</div>
+            <div class="history-score-wrap">
+              <span class="history-score ${item.verdict}">${item.trust_score}</span>
+              <span class="history-verdict">${verdictText(item.verdict)}</span>
+            </div>
+          </div>
+          <div class="history-date">${item.date}</div>
+          ${flagsHtml}
+        </div>`;
+    }).join("");
+  }
+
+  // ── UI helpers ───────────────────────────────────────────
+  function showError(msg) {
+    const el = document.getElementById("errorBanner");
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+
+  function hideError() {
+    document.getElementById("errorBanner").classList.remove("show");
+  }
+
+  function showLoading(on) {
+    document.getElementById("loadingEl").classList.toggle("show", on);
+  }
+
+  function hideResult() {
+    document.getElementById("resultCard").classList.remove("show");
+  }
+
+  function setAnalyzeDisabled(on) {
+    document.getElementById("analyzeBtn").disabled = on;
+    document.getElementById("analyzeBtn").textContent = on ? "Analyzing…" : "Analyze listing";
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ── Boot ─────────────────────────────────────────────────
+  navigate("home");
+</script>
     // ── History ──────────────────────────────────────────────
     function loadHistory() {
       try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
